@@ -13,8 +13,8 @@ public class FournisseurDTO {
 
     private Long id;
 
-    @NotBlank(message = "Le code fournisseur est obligatoire")
-    @Pattern(regexp = "F\\d{5}", message = "Le code doit être au format F00000")
+//    @NotBlank(message = "Le code fournisseur est obligatoire")
+//    @Pattern(regexp = "F\\d{5}", message = "Le code doit être au format F00000")
     private String code;
 
     @NotBlank(message = "Le nom est obligatoire")
