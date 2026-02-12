@@ -20,7 +20,8 @@ import {
   FiRefreshCw,
   FiDownload,
   FiEdit,
-  FiPlusCircle
+  FiPlusCircle,
+  FiClock  
 } from 'react-icons/fi';
 import { FaFileExcel } from 'react-icons/fa'; // Import Excel
 const Sidebar = () => {
@@ -61,45 +62,6 @@ const Sidebar = () => {
           </a>
         </div>
 
-        {/* Section Matériels */}
-        <div className="mb-2">
-          <div 
-            className="flex items-center cursor-pointer hover:bg-blue-700 p-2 rounded-lg transition-colors"
-            onClick={() => toggleSection('materiels')}
-          >
-            <FiBox className="mr-3 text-blue-300" size={20} />
-            <span className="font-medium">Matériels</span>
-            {openSections.materiels ? <FiChevronDown className="ml-auto" /> : <FiChevronRight className="ml-auto" />}
-          </div>
-          {openSections.materiels && (
-            <ul className="ml-6 mt-1 space-y-1">
-              <li>
-                <a href="/materiels" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
-                  <FiGrid className="mr-2 text-blue-200" size={16} />
-                  <span className="ml-1">Tous les matériels  ✅</span>
-                </a>
-              </li>
-              <li>
-                <a href="/AttributionMateriel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
-                  <FiBox className="mr-2 text-green-300" size={16} />
-                  <span className="ml-1">Attribution Materiel</span>
-                </a>
-              </li>
-              <li>
-                <a href="/ReaffectationMateriel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
-                  <FiUsers className="mr-2 text-yellow-300" size={16} />
-                  <span className="ml-1">Reaffectation Materiel</span>
-                </a>
-              </li>
-              <li>
-                <a href="/ReaffectationMateriel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
-                  <FiPlus className="mr-2 text-purple-300" size={16} />
-                  <span className="ml-1">Ajouter un matériel</span>
-                </a>
-              </li>
-            </ul>
-          )}
-        </div>
 
         {/* Section Achats */}
         <div className="mb-2">
@@ -116,25 +78,25 @@ const Sidebar = () => {
               <li>
                 <a href="/achats-excel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiClipboard className="mr-2 text-blue-200" size={16} />
-                  <span className="ml-1">Liste des achats ✅</span>
+                  <span className="ml-1">Liste des achats</span>
                 </a>
               </li>
               <li>
                 <a href="/add-achats-excel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
-                  <FaFileExcel className="mr-2 text-yellow-300" size={16} />
-                  <span className="ml-1">Prix Excel  ✅</span>
+                  <FiUpload className="mr-2 text-yellow-300" size={16} />
+                  <span className="ml-1">Import Excel  Prix</span>
                 </a>
               </li>
                             <li>
                 <a href="/add-achats-manuel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiPlusCircle   className="mr-2 text-yellow-300" size={16} />
-                  <span className="ml-1">Prix Manuel  ✅</span>
+                  <span className="ml-1">Prix Manuel </span>
                 </a>
               </li>
               <li>
                 <a href="/add-achat" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiPlus className="mr-2 text-green-300" size={16} />
-                  <span className="ml-1">Nouvel achat  ✅</span>
+                  <span className="ml-1">Nouvel achat </span>
                 </a>
               </li>
               <li>
@@ -146,6 +108,55 @@ const Sidebar = () => {
             </ul>
           )}
         </div>
+
+
+        {/* Section Matériels */}
+        <div className="mb-2">
+          <div 
+            className="flex items-center cursor-pointer hover:bg-blue-700 p-2 rounded-lg transition-colors"
+            onClick={() => toggleSection('materiels')}
+          >
+            <FiBox className="mr-3 text-blue-300" size={20} />
+            <span className="font-medium">Matériels</span>
+            {openSections.materiels ? <FiChevronDown className="ml-auto" /> : <FiChevronRight className="ml-auto" />}
+          </div>
+          {openSections.materiels && (
+            <ul className="ml-6 mt-1 space-y-1">
+              <li>
+                <a href="/materiels" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiGrid className="mr-2 text-blue-200" size={16} />
+                  <span className="ml-1">Tous les matériels </span>
+                </a>
+              </li>
+              <li>
+                <a href="/AttributionMateriel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiBox className="mr-2 text-green-300" size={16} />
+                  <span className="ml-1">Attribution Materiel</span>
+                </a>
+              </li>
+              <li>
+                <a href="/ReaffectationMateriel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiUsers className="mr-2 text-yellow-300" size={16} />
+                  <span className="ml-1">Reaffectation Materiel</span>
+                </a>
+              </li>
+              <li>
+                <a href="/MultiReaffectation" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiPlus className="mr-2 text-purple-300" size={16} />
+                  <span className="ml-1">Multi-Reaffectation</span>
+                </a>
+              </li>
+
+                            <li>
+                <a href="/HistoriqueMateriel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiClock  className="mr-2 text-indigo-300" size={16} />
+                  <span className="ml-1">Historique Materiel</span>
+                </a>
+              </li>
+            </ul>
+          )}
+        </div>
+
 
         {/* Section Prix Excel */}
         <div className="mb-2">
@@ -166,7 +177,7 @@ const Sidebar = () => {
                 </a>
               </li>
               <li>
-                <a href="/import-excel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                <a href="/add-achats-excel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiUpload className="mr-2 text-blue-200" size={16} />
                   <span className="ml-1">Importer via Excel</span>
                 </a>
@@ -228,7 +239,7 @@ const Sidebar = () => {
           {openSections.fournisseurs && (
             <ul className="ml-6 mt-1 space-y-1">
               <li>
-                <a href="/fournisseurs" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                <a href="/GestionFournisseurs" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiUsers className="mr-2 text-blue-200" size={16} />
                   <span className="ml-1">Liste des fournisseurs</span>
                 </a>

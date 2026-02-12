@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api/achats';
-const API_BASE_URL_2 = 'http://localhost:8080/api/prix/achats';
-const PRIX_API_BASE_URL = 'http://localhost:8080/api/prix'; // ✅ Nouvelle URL pour les prix
+const API_BASE_URL = 'http://192.168.1.80:8080/api/achats';
+const API_BASE_URL_2 = 'http://192.168.1.80:8080/api/prix/achats';
+const PRIX_API_BASE_URL = 'http://192.168.1.80:8080/api/prix'; // ✅ Nouvelle URL pour les prix
 export const getAllAchats = () => {
   return axios.get(API_BASE_URL);
 };

@@ -36,9 +36,9 @@ const Header = () => {
         
         <div className="flex items-center space-x-2">
           <div className="bg-blue-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-md">
-            <span className="text-white font-bold">M</span>
+            <span className="text-white font-bold">D</span>
           </div>
-          <span className="text-gray-700 hidden md:block">Marie</span>
+          <span className="text-gray-700 hidden md:block">DAHMAN</span>
         </div>
       </div>
     </header>

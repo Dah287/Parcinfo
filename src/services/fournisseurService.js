@@ -1,23 +1,18 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api/fournisseurs';
+const API_BASE_URL = 'http://192.168.1.80:8080/api/fournisseurs';
 
-export const getAllFournisseurs = () => {
-  return axios.get(API_BASE_URL).then(res => res.data);
-};
+// 🔹 CRUD & listes
+export const getAllFournisseurs = () => axios.get(API_BASE_URL);
+export const getFournisseurById = (id) => axios.get(`${API_BASE_URL}/${id}`);
+export const searchFournisseurs = (keyword) =>
+  axios.get(`${API_BASE_URL}/search`, { params: { keyword } });
 
-export const getFournisseurById = (id) => {
-  return axios.get(`${API_BASE_URL}/${id}`).then(res => res.data);
-};
+export const createFournisseur = (fournisseurData) =>
+  axios.post(API_BASE_URL, fournisseurData);
 
-export const createFournisseur = (data) => {
-  return axios.post(API_BASE_URL, data);
-};
+export const updateFournisseur = (id, fournisseurData) =>
+  axios.put(`${API_BASE_URL}/${id}`, fournisseurData);
 
-export const updateFournisseur = (id, data) => {
-  return axios.put(`${API_BASE_URL}/${id}`, data);
-};
-
-export const deleteFournisseur = (id) => {
-  return axios.delete(`${API_BASE_URL}/${id}`);
-};
+export const deleteFournisseur = (id) =>
+  axios.delete(`${API_BASE_URL}/${id}`);

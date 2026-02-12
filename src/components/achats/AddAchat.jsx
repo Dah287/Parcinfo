@@ -55,7 +55,9 @@ const AddAchat = ({ onClose, onSuccess }) => {
   const loadFournisseurs = async () => {
     try {
       setLoadingFournisseurs(true);
-      const data = await getAllFournisseurs();
+      const response = await getAllFournisseurs();
+const data = response.data;
+      console.log('Fournisseurs chargés:', data);
       setFournisseurs(data);
     } catch (err) {
       console.error('Erreur lors du chargement des fournisseurs:', err);
@@ -279,7 +281,7 @@ const generateReference = () => {
                       <p className="text-sm text-gray-600">Créer l'achat avec les prix immédiatement</p>
                     </div>
                   </div>
-                  <ul className="text-sm text-gray-600 space-y-1 ml-1">
+                  {/* <ul className="text-sm text-gray-600 space-y-1 ml-1">
                     <li className="flex items-center">
                       <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></div>
                       Génération automatique des matériels
@@ -288,7 +290,7 @@ const generateReference = () => {
                       <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></div>
                       Calcul instantané du montant total
                     </li>
-                  </ul>
+                  </ul> */}
                 </button>
                 
                 <button
@@ -311,7 +313,7 @@ const generateReference = () => {
                       <p className="text-sm text-gray-600">Créer l'achat vide, ajouter les prix plus tard</p>
                     </div>
                   </div>
-                  <ul className="text-sm text-gray-600 space-y-1 ml-1">
+                  {/* <ul className="text-sm text-gray-600 space-y-1 ml-1">
                     <li className="flex items-center">
                       <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></div>
                       Flexibilité pour ajouter les prix plus tard
@@ -320,7 +322,7 @@ const generateReference = () => {
                       <div className="w-1.5 h-1.5 bg-green-400 rounded-full mr-2"></div>
                       Importation Excel possible ultérieurement
                     </li>
-                  </ul>
+                  </ul> */}
                 </button>
               </div>
             </div>
@@ -650,7 +652,7 @@ const generateReference = () => {
                     </h3>
                     <div className="text-yellow-700 space-y-2">
                       <p>
-                        Vous créez un achat sans prix. Vous pourrez ajouter les prix plus tard via :
+                        Vous créezd un achat sans prix. Vous pourrez ajouter les prix plus tard via :
                       </p>
                       <ul className="list-disc pl-5 space-y-1">
                         <li>Importation Excel (format standard)</li>

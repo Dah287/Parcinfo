@@ -11,6 +11,9 @@ import AddPrixManuel from "./components/achats/AddPrixManuel";
 import AddAchat from "./components/achats/AddAchat";
 import AttributionMateriel from "./components/materiels/AttributionMateriel";
 import ReaffectationMateriel from "./components/materiels/ReaffectationMateriel";
+import MultiReaffectation from "./components/materiels/MultiReaffectation";
+import HistoriqueMateriel from "./components/materiels/HistoriqueMateriel";
+import GestionFournisseurs from "./components/fournisseur/GestionFournisseurs";
 
 function App() {
   return (
@@ -32,6 +35,9 @@ function App() {
                 <Route path="/add-achat" element={<AddAchat/>} />
                  <Route path="/ReaffectationMateriel" element={<ReaffectationMateriel/>} />
                   <Route path="/AttributionMateriel" element={<AttributionMateriel/>} />
+                   <Route path="/MultiReaffectation" element={<MultiReaffectation/>} />
+                   <Route path="/HistoriqueMateriel" element={<HistoriqueMateriel/>} />
+                   <Route path="/GestionFournisseurs" element={<GestionFournisseurs/>} />
             </Routes>
           </main>
         </div>

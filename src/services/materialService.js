@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api/materiels';
+const API_BASE_URL = 'http://192.168.1.80:8080/api/materiels';
 
 // 🔹 CRUD & listes
 export const getAllMateriels = () => axios.get(API_BASE_URL);

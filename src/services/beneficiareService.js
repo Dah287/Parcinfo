@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api/beneficiaires';
+const API_BASE_URL = 'http://192.168.1.80:8080/api/beneficiaires';
 
 // 🔹 Récupérer tous les bénéficiaires
 export const getAllBeneficiaires = () => {
