@@ -148,6 +148,13 @@ const Sidebar = () => {
               </li>
 
                             <li>
+                <a href="/AffectationComplete" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiPlus className="mr-2 text-purple-300" size={16} />
+                  <span className="ml-1">Affectation Complete</span>
+                </a>
+              </li>
+
+                            <li>
                 <a href="/HistoriqueMateriel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiClock  className="mr-2 text-indigo-300" size={16} />
                   <span className="ml-1">Historique Materiel</span>

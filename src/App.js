@@ -14,6 +14,7 @@ import ReaffectationMateriel from "./components/materiels/ReaffectationMateriel"
 import MultiReaffectation from "./components/materiels/MultiReaffectation";
 import HistoriqueMateriel from "./components/materiels/HistoriqueMateriel";
 import GestionFournisseurs from "./components/fournisseur/GestionFournisseurs";
+import AffectationComplete from "./components/materiels/AffectationComplete";
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
                    <Route path="/MultiReaffectation" element={<MultiReaffectation/>} />
                    <Route path="/HistoriqueMateriel" element={<HistoriqueMateriel/>} />
                    <Route path="/GestionFournisseurs" element={<GestionFournisseurs/>} />
+                   <Route path="/AffectationComplete" element={<AffectationComplete/>} />
             </Routes>
           </main>
         </div>

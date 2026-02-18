@@ -22,7 +22,7 @@ import {
   getStats,
   importerPrixExcel
 } from '../../services/achatService';
-
+import * as XLSX from 'xlsx';
 
 const AddPrixExcel = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState(null);
@@ -60,23 +60,116 @@ const fetchAchats = async () => {
            achat.fournisseur?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const handleFileSelect = (e) => {
-    const selectedFile = e.target.files[0];
-    if (!selectedFile) return;
 
-    // Vérifier le type de fichier
-    if (!selectedFile.name.match(/\.(xlsx|xls)$/)) {
-      setError('Veuillez sélectionner un fichier Excel (.xlsx ou .xls)');
-      return;
+// Dans votre composant AddPrixExcel, remplacez la fonction handleFileSelect :
+
+const handleFileSelect = (e) => {
+  const selectedFile = e.target.files[0];
+  if (!selectedFile) return;
+
+  // Vérifier le type de fichier
+  if (!selectedFile.name.match(/\.(xlsx|xls)$/i)) {
+    setError('Veuillez sélectionner un fichier Excel (.xlsx ou .xls)');
+    return;
+  }
+
+  setFile(selectedFile);
+  setError(null);
+  setImportResult(null);
+  
+  // Lire et parser le fichier Excel
+  parseExcelFile(selectedFile);
+};
+
+// Nouvelle fonction pour parser le fichier Excel
+const parseExcelFile = (file) => {
+  const reader = new FileReader();
+  
+  reader.onload = (event) => {
+    try {
+      const data = new Uint8Array(event.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      // Prendre la première feuille
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // Convertir en JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1, // Lire comme tableau de lignes
+        defval: '', // Valeur par défaut pour les cellules vides
+        blankrows: false // Ignorer les lignes vides
+      });
+
+      // Analyser les données
+      const parsedData = parseExcelData(jsonData);
+      setPreviewData(parsedData);
+      setPreviewMode(true);
+      
+    } catch (error) {
+      console.error('Erreur lors de la lecture du fichier Excel:', error);
+      setError('Erreur lors de la lecture du fichier Excel. Vérifiez le format.');
+      setPreviewData([]);
+    }
+  };
+  
+  reader.onerror = (error) => {
+    console.error('Erreur FileReader:', error);
+    setError('Erreur lors de la lecture du fichier');
+    setPreviewData([]);
+  };
+  
+  reader.readAsArrayBuffer(file);
+};
+
+// Fonction pour parser les données Excel
+const parseExcelData = (rows) => {
+  if (!rows || rows.length < 2) {
+    return [];
+  }
+
+  // Ignorer l'en-tête (première ligne)
+  const dataRows = rows.slice(1);
+  const parsedRows = [];
+
+  for (let i = 0; i < dataRows.length; i++) {
+    const row = dataRows[i];
+    
+    // Vérifier si la ligne est vide
+    if (!row || row.length === 0 || !row[0]) {
+      continue;
     }
 
-    setFile(selectedFile);
-    setError(null);
-    setImportResult(null);
-    
-    // Simuler un aperçu (à remplacer par un vrai parsing Excel)
-    simulatePreview(selectedFile);
-  };
+    // Extraire les données (5 colonnes)
+    const numeroPrix = row[0]?.toString().trim() || '';
+    const designation = row[1]?.toString().trim() || '';
+    const unite = row[2]?.toString().trim() || 'U';
+    const quantite = parseFloat(row[3]) || 0;
+    const prixUnitaireHT = parseFloat(row[4]) || 0;
+
+    // Ne pas ajouter les lignes vides ou les notes
+    if (numeroPrix.toUpperCase().includes('NOTE') || 
+        designation.toUpperCase().includes('NOTE')) {
+      continue;
+    }
+
+    // Ajouter uniquement si au moins un champ est rempli
+    if (numeroPrix || designation || quantite > 0 || prixUnitaireHT > 0) {
+      parsedRows.push({
+        numeroPrix,
+        designation,
+        unite,
+        quantite,
+        prixUnitaireHT
+      });
+    }
+
+    // Limiter à 20 lignes pour l'aperçu
+    if (parsedRows.length >= 20) break;
+  }
+
+  return parsedRows;
+};
 
   const simulatePreview = (selectedFile) => {
     // Simulation d'aperçu - À remplacer par un vrai parsing Excel
@@ -124,33 +217,45 @@ try {
 
   };
 
-  const downloadTemplate = () => {
-    // Créer un modèle Excel vide (simulation)
-    const templateData = [
-      ['Numéro Prix', 'Désignation', 'Unité', 'Quantité', 'Prix HT'],
-      ['P001', 'Ex: Ordinateur portable', 'U', '5', '1200.00'],
-      ['P002', 'Ex: Souris sans fil', 'U', '10', '25.50'],
-      ['P003', 'Ex: Clavier USB', 'U', '8', '45.00'],
-      ['', '', '', '', ''],
-      ['NOTES:', '', '', '', ''],
-      ['- Ne modifiez pas les noms de colonnes', '', '', '', ''],
-      ['- Remplissez les données à partir de la ligne 2', '', '', '', ''],
-      ['- Enregistrez le fichier en format .xlsx', '', '', '', '']
-    ];
+const downloadTemplate = () => {
+  // Créer les données du modèle
+  const templateData = [
+    ['Numéro Prix', 'Désignation', 'Unité', 'Quantité', 'Prix HT (DH)'],
+    ['P001', 'Ordinateur portable Dell', 'U', '5', '1200.00'],
+    ['P002', 'Souris sans fil Logitech', 'U', '10', '25.50'],
+    ['P003', 'Clavier USB', 'U', '8', '45.00']
+    // ,
+    // ['', '', '', '', ''],
+    // ['NOTES:', '', '', '', ''],
+    // ['- Ne modifiez pas les noms de colonnes', '', '', '', ''],
+    // ['- Remplissez les données à partir de la ligne 2', '', '', '', ''],
+    // ['- Enregistrez le fichier en format .xlsx', '', '', '', '']
+  ];
 
-    let csvContent = "data:text/csv;charset=utf-8,";
-    templateData.forEach(row => {
-      csvContent += row.join(",") + "\r\n";
-    });
+  // Créer un workbook et une worksheet
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(templateData);
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `modele_prix_achat_${selectedAchat?.reference || 'template'}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // Ajuster la largeur des colonnes
+  ws['!cols'] = [
+    { wch: 15 }, // Numéro Prix
+    { wch: 40 }, // Désignation
+    { wch: 10 }, // Unité
+    { wch: 12 }, // Quantité
+    { wch: 15 }, // Prix HT
+  ];
+
+  // Ajouter la worksheet au workbook
+  XLSX.utils.book_append_sheet(wb, ws, 'Modèle Prix');
+
+  // Générer le nom du fichier
+  const fileName = selectedAchat 
+    ? `modele_prix_${selectedAchat.reference.replace(/[^a-z0-9]/gi, '_')}.xlsx`
+    : 'modele_importation_prix_achat.xlsx';
+
+  // Télécharger le fichier
+  XLSX.writeFile(wb, fileName);
+};
 
   const calculateTotalPreview = () => {
     return previewData.reduce((total, prix) => {
