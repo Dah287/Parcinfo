@@ -43,4 +43,22 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
     long countByEtat(Material.EtatMateriel etat);
 
     long countByTypeId(Long typeId);
+
+    //List<Material> findByAchatIdAndEtat(Long achatId, Material.EtatMateriel etat);
+
+    /**
+     * Trouver les matériels disponibles pour un achat spécifique
+     * via la relation Material -> Prix -> Achat
+     */
+    @Query("SELECT m FROM Material m " +
+            "JOIN m.prix p " +
+            "WHERE p.achat.id = :achatId " +
+            "AND m.etat = com.example.parcinfo.model.Material.EtatMateriel.DISPONIBLE")
+    List<Material> findDisponiblesByAchatId(@Param("achatId") Long achatId);
+
+//    /**
+//     * Trouver tous les matériels (attribués ou non) pour un achat spécifique
+//     */
+//    @Query("SELECT m FROM Material m JOIN m.prix p WHERE p.achat.id = :achatId")
+//    List<Material> findByAchatId(@Param("achatId") Long achatId);
 }

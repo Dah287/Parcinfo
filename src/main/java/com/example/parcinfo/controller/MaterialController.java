@@ -1,5 +1,6 @@
 package com.example.parcinfo.controller;
 
+import com.example.parcinfo.dto.AffectationCompleteDTO;
 import com.example.parcinfo.dto.AttributionMaterialDTO;
 import com.example.parcinfo.dto.MaterialDTO;
 import com.example.parcinfo.model.Material;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/materiels")
@@ -212,5 +214,43 @@ public class MaterialController {
     public ResponseEntity<?> getHistoriqueAttribution(@PathVariable Long id) {
         // À implémenter si nécessaire
         return ResponseEntity.ok().build();
+    }
+
+    // Ajoutez ces endpoints dans votre MaterialController
+
+    /**
+     * Attribuer une configuration complète de matériels à un bénéficiaire
+     */
+    @PostMapping("/affectation-complete")
+    public ResponseEntity<?> affecterConfigurationComplete(@RequestBody AffectationCompleteDTO dto) {
+        try {
+            List<Material> materielsAttribues = materialService.affecterConfigurationComplete(dto);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Attribution complète de " + materielsAttribues.size() + " matériel(s) effectuée avec succès",
+                    "materielsAttribues", materielsAttribues
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Obtenir les matériels disponibles groupés par prix/designation pour un achat
+     */
+    @GetMapping("/achat/{achatId}/disponibles-par-prix")
+    public ResponseEntity<?> getMaterielsDisponiblesParPrix(@PathVariable Long achatId) {
+        try {
+            Map<String, List<Material>> materielsParPrix = materialService.getMaterielsDisponiblesParPrix(achatId);
+            return ResponseEntity.ok(materielsParPrix);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
     }
 }
