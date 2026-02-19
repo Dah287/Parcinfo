@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiPrinter, FiArrowLeft, FiUser, FiCheckSquare } from 'react-icons/fi';
+import { FiPrinter, FiArrowLeft, FiUser, FiCheckSquare, FiDownload } from 'react-icons/fi';
 import { getPriseEnChargeByAchat, getMaterielsAttribuesParAchatEtBeneficiaire } from '../../services/materialService';
 import { getAchatById } from '../../services/achatService';
 import { toast } from 'react-toastify';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import './PriseEnCharge.css';
 
 const PriseEnCharge = () => {
   const { achatId } = useParams();
   const navigate = useNavigate();
   const printRef = useRef();
+  const [downloading, setDownloading] = useState(false);
   
   const [achat, setAchat] = useState(null);
   const [priseEnCharge, setPriseEnCharge] = useState([]);
@@ -84,41 +87,146 @@ const PriseEnCharge = () => {
     }
   };
 
-  // ✅ FONCTION D'IMPRESSION CORRIGÉE
+  // FONCTION D'IMPRESSION
   const handlePrint = () => {
-    // Créer une nouvelle fenêtre pour l'impression
+    const formsToPrint = getFormsToPrint();
+    if (!formsToPrint) return;
+
+    const printContent = generatePrintHTML(formsToPrint);
     const printWindow = window.open('', '_blank');
     
-    // Déterminer quels formulaires imprimer
-    let formsToPrint = [];
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.focus();
     
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
+  };
+
+  // ✅ FONCTION DE TÉLÉCHARGEMENT PDF EN PAYSAGE
+  const handleDownloadPDF = async () => {
+    const formsToPrint = getFormsToPrint();
+    if (!formsToPrint) return;
+
+    setDownloading(true);
+    toast.info('Génération du PDF en cours...');
+
+    try {
+      // Créer un conteneur temporaire pour le PDF
+      const pdfContainer = document.createElement('div');
+      pdfContainer.style.position = 'absolute';
+      pdfContainer.style.left = '-9999px';
+      pdfContainer.style.top = '0';
+      pdfContainer.style.width = '297mm'; // Largeur A4 paysage
+      pdfContainer.style.backgroundColor = 'white';
+      pdfContainer.style.padding = '10mm';
+      pdfContainer.innerHTML = generatePrintHTML(formsToPrint, true); // true pour le mode paysage
+      document.body.appendChild(pdfContainer);
+
+      // Attendre que le contenu soit rendu
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Créer le PDF en orientation paysage
+      const pdf = new jsPDF({
+        orientation: 'landscape', // Orientation paysage
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const forms = pdfContainer.querySelectorAll('.prise-en-charge-form');
+      
+      for (let i = 0; i < forms.length; i++) {
+        const form = forms[i];
+        
+        // Ajuster la largeur pour le paysage
+        form.style.width = '277mm'; // Légèrement moins que 297mm pour les marges
+        
+        // Convertir le formulaire en canvas
+        const canvas = await html2canvas(form, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+          allowTaint: false,
+          useCORS: true,
+          windowWidth: 1200, // Largeur virtuelle pour le rendu
+          onclone: (clonedDoc) => {
+            // Ajuster les styles dans le clone
+            const clonedForms = clonedDoc.querySelectorAll('.prise-en-charge-form');
+            clonedForms.forEach(f => {
+              f.style.width = '277mm';
+              f.style.margin = '0 auto';
+            });
+          }
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        
+        // Dimensions pour le paysage (A4 paysage: 297mm x 210mm)
+        const imgWidth = 277; // mm (avec marge de 10mm de chaque côté)
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        // Centrer l'image sur la page
+        const xOffset = (297 - imgWidth) / 2;
+        const yOffset = (210 - imgHeight) / 2;
+
+        // Ajouter une nouvelle page si ce n'est pas la première
+        if (i > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight, undefined, 'FAST');
+      }
+
+      // Télécharger le PDF
+      const beneficiaireName = selectedBeneficiaire 
+        ? `${selectedBeneficiaire.nom}_${selectedBeneficiaire.prenom}`
+        : selectedBeneficiaires.length > 0 
+          ? `${selectedBeneficiaires.length}_beneficiaires`
+          : 'tous_beneficiaires';
+      
+      pdf.save(`prise_en_charge_${beneficiaireName}_${new Date().toISOString().split('T')[0]}.pdf`);
+
+      // Nettoyer
+      document.body.removeChild(pdfContainer);
+      toast.success('PDF téléchargé avec succès!');
+    } catch (error) {
+      console.error('Erreur génération PDF:', error);
+      toast.error('Erreur lors de la génération du PDF');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Fonction utilitaire pour obtenir les formulaires à imprimer/télécharger
+  const getFormsToPrint = () => {
     if (selectedBeneficiaire) {
-      // Imprimer un seul bénéficiaire
-      formsToPrint = [{
+      return [{
         beneficiaire: selectedBeneficiaire,
         materiels: materielsBeneficiaire
       }];
     } else if (selectionMode && selectedBeneficiaires.length > 0) {
-      // Imprimer les bénéficiaires sélectionnés
-      formsToPrint = priseEnCharge.filter(dto => 
+      return priseEnCharge.filter(dto => 
         selectedBeneficiaires.includes(dto.beneficiaire?.id)
       );
     } else if (showAllBeneficiaires) {
-      // Imprimer tous les bénéficiaires
-      formsToPrint = priseEnCharge;
+      return priseEnCharge;
     } else {
-      toast.warning('Veuillez sélectionner au moins un bénéficiaire à imprimer');
-      return;
+      toast.warning('Veuillez sélectionner au moins un bénéficiaire');
+      return null;
     }
+  };
 
-    // Construire le contenu HTML pour l'impression
-    const printContent = `
+  // ✅ Générer le HTML pour l'impression/PDF (avec option paysage)
+  const generatePrintHTML = (formsToPrint, isLandscape = false) => {
+    return `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Impression - Prise en charge</title>
+        <title>Prise en charge</title>
+        <meta charset="UTF-8">
         <style>
-          ${getPrintStyles()}
+          ${getPrintStyles(isLandscape)}
         </style>
       </head>
       <body>
@@ -126,26 +234,16 @@ const PriseEnCharge = () => {
           achat, 
           dto.beneficiaire, 
           dto.materiels, 
-          index + 1
+          index + 1,
+          isLandscape
         )).join('')}
       </body>
       </html>
     `;
-
-    // Écrire dans la nouvelle fenêtre et imprimer
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-    
-    // Attendre que le contenu soit chargé puis imprimer
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
   };
 
-  // ✅ Générer le HTML pour un formulaire
-  const generateFormHTML = (achat, beneficiaire, materiels, numero) => {
+  // ✅ Générer le HTML pour un formulaire (avec adaptation paysage)
+  const generateFormHTML = (achat, beneficiaire, materiels, numero, isLandscape = false) => {
     const totalTTC = calculateTotalTTC(materiels);
     const today = new Date().toLocaleDateString('fr-FR', {
       day: '2-digit',
@@ -173,8 +271,11 @@ const PriseEnCharge = () => {
         }).join('')
       : '<tr><td colspan="7" class="text-center">Aucun matériel trouvé</td></tr>';
 
+    // Classes supplémentaires pour le mode paysage
+    const landscapeClass = isLandscape ? 'landscape-mode' : '';
+
     return `
-      <div class="prise-en-charge-form">
+      <div class="prise-en-charge-form ${landscapeClass}">
         <!-- En-tête -->
         <table class="form-header">
           <thead>
@@ -297,8 +398,8 @@ const PriseEnCharge = () => {
     `;
   };
 
-  // ✅ Styles pour l'impression
-  const getPrintStyles = () => `
+  // ✅ Styles pour l'impression/PDF (avec adaptation paysage)
+  const getPrintStyles = (isLandscape = false) => `
     * {
       margin: 0;
       padding: 0;
@@ -308,7 +409,7 @@ const PriseEnCharge = () => {
     body {
       font-family: Arial, sans-serif;
       background: white;
-      padding: 10mm;
+      padding: ${isLandscape ? '5mm' : '10mm'};
     }
     
     .prise-en-charge-form {
@@ -316,6 +417,11 @@ const PriseEnCharge = () => {
       margin-bottom: 20px;
       page-break-after: always;
       background: white;
+      ${isLandscape ? 'width: 277mm; margin: 0 auto;' : ''}
+    }
+    
+    .landscape-mode {
+      font-size: ${isLandscape ? '12px' : '11px'};
     }
     
     .form-header,
@@ -334,51 +440,51 @@ const PriseEnCharge = () => {
     .form-table td,
     .form-footer td {
       border: 1px solid #000;
-      padding: 8px;
+      padding: ${isLandscape ? '6px' : '8px'};
     }
     
     .title {
-      font-size: 16px;
+      font-size: ${isLandscape ? '18px' : '16px'};
       font-weight: bold;
       text-align: center;
       text-transform: uppercase;
-      padding: 10px;
+      padding: ${isLandscape ? '8px' : '10px'};
     }
     
     .organization {
-      font-size: 12px;
+      font-size: ${isLandscape ? '14px' : '12px'};
       text-align: left;
-      padding: 5px;
+      padding: ${isLandscape ? '4px' : '5px'};
     }
     
     .section-label {
-      font-size: 11px;
+      font-size: ${isLandscape ? '12px' : '11px'};
       vertical-align: top;
       width: 25%;
     }
     
     .section-value {
-      font-size: 11px;
+      font-size: ${isLandscape ? '12px' : '11px'};
       vertical-align: top;
     }
     
     .fournisseur {
       display: block;
-      margin-top: 10px;
+      margin-top: ${isLandscape ? '5px' : '10px'};
       text-align: right;
     }
     
     .form-table th {
       background: #f0f0f0;
-      font-size: 10px;
+      font-size: ${isLandscape ? '11px' : '10px'};
       text-transform: uppercase;
       text-align: center;
-      padding: 6px;
+      padding: ${isLandscape ? '4px' : '6px'};
     }
     
     .form-table td {
-      font-size: 11px;
-      padding: 8px;
+      font-size: ${isLandscape ? '12px' : '11px'};
+      padding: ${isLandscape ? '6px' : '8px'};
     }
     
     .col-inventaire { width: 15%; }
@@ -405,18 +511,18 @@ const PriseEnCharge = () => {
     .footer-right {
       width: 50%;
       vertical-align: top;
-      padding: 20px;
+      padding: ${isLandscape ? '15px' : '20px'};
     }
     
     .detenteur-signature,
     .date-signature {
-      font-size: 11px;
+      font-size: ${isLandscape ? '12px' : '11px'};
     }
     
     .signature-space {
-      height: 60px;
+      height: ${isLandscape ? '40px' : '60px'};
       border: 1px dashed #ccc;
-      margin-top: 10px;
+      margin-top: ${isLandscape ? '5px' : '10px'};
     }
     
     @media print {
@@ -482,6 +588,16 @@ const PriseEnCharge = () => {
           <button className="btn btn-primary" onClick={handlePrint}>
             <FiPrinter className="mr-2" /> Imprimer
           </button>
+
+          {/* BOUTON PDF EN PAYSAGE */}
+          <button 
+            className="btn btn-danger" 
+            onClick={handleDownloadPDF}
+            disabled={downloading}
+          >
+            <FiDownload className="mr-2" /> 
+            {downloading ? 'Génération...' : 'PDF Paysage'}
+          </button>
           
           {showAllBeneficiaires && !selectionMode && (
             <button 
@@ -540,7 +656,7 @@ const PriseEnCharge = () => {
                         checked={selectedBeneficiaires.includes(beneficiaireId)}
                         onChange={() => toggleBeneficiaire(beneficiaireId)}
                       />
-                      Sélectionner pour impression
+                      Sélectionner pour impression/PDF
                     </label>
                   </div>
                 )}
