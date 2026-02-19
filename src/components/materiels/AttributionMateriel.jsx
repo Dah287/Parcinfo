@@ -1,45 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import { FiUser, FiPackage, FiCheck, FiSearch, FiX, FiInfo, FiChevronDown } from 'react-icons/fi';
-import { attribuerMateriel, getAllMateriels } from '../../services/materialService';
+import { FiUser, FiPackage, FiCheck, FiSearch, FiX, FiInfo, FiChevronDown, FiShoppingCart, FiDollarSign } from 'react-icons/fi';
+import { attribuerMateriel, getAllMateriels, getMaterielsDisponiblesParPrix } from '../../services/materialService';
 import { getAllBeneficiaires } from '../../services/beneficiareService';
+import { getAllAchats, getPrixByAchat } from '../../services/achatService';
 import { toast } from 'react-toastify';
 
 const AttributionMateriel = () => {
+  // États pour les données
+  const [achats, setAchats] = useState([]);
+  const [prixList, setPrixList] = useState([]);
   const [materielsDisponibles, setMaterielsDisponibles] = useState([]);
   const [beneficiaires, setBeneficiaires] = useState([]);
+  
+  // États pour les sélections (Nouveau workflow)
+  const [selectedAchat, setSelectedAchat] = useState(null);
+  const [selectedPrix, setSelectedPrix] = useState(null);
   const [selectedMateriel, setSelectedMateriel] = useState(null);
   const [selectedBeneficiaire, setSelectedBeneficiaire] = useState(null);
+  
+  // États pour le formulaire
   const [dateAttribution, setDateAttribution] = useState(new Date().toISOString().split('T')[0]);
   const [observations, setObservations] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loadingMateriels, setLoadingMateriels] = useState(true);
+  
+  // États de chargement par étape
+  const [loadingAchats, setLoadingAchats] = useState(true);
+  const [loadingPrix, setLoadingPrix] = useState(false);
+  const [loadingMateriels, setLoadingMateriels] = useState(false);
   const [loadingBeneficiaires, setLoadingBeneficiaires] = useState(true);
   
   // États pour les dropdowns
+  const [showAchatDropdown, setShowAchatDropdown] = useState(false);
+  const [showPrixDropdown, setShowPrixDropdown] = useState(false);
   const [showMaterielDropdown, setShowMaterielDropdown] = useState(false);
   const [showBeneficiaireDropdown, setShowBeneficiaireDropdown] = useState(false);
+  
+  // États pour la recherche
+  const [achatSearch, setAchatSearch] = useState('');
+  const [prixSearch, setPrixSearch] = useState('');
   const [materielSearch, setMaterielSearch] = useState('');
   const [beneficiaireSearch, setBeneficiaireSearch] = useState('');
-// test
+
   // Charger les données initiales
   useEffect(() => {
     const loadData = async () => {
       try {
-        setLoadingMateriels(true);
+        setLoadingAchats(true);
         setLoadingBeneficiaires(true);
         
-        const [materielsRes, beneficiairesRes] = await Promise.all([
-          getAllMateriels(),
+        const [achatsRes, beneficiairesRes] = await Promise.all([
+          getAllAchats(),
           getAllBeneficiaires()
         ]);
         
-        setMaterielsDisponibles(materielsRes.data || []);
-        setBeneficiaires(beneficiairesRes.data || []);
+        // ✅ S'assurer que ce sont des tableaux
+        setAchats(Array.isArray(achatsRes.data) ? achatsRes.data : []);
+        setBeneficiaires(Array.isArray(beneficiairesRes.data) ? beneficiairesRes.data : []);
       } catch (error) {
         console.error('Erreur chargement données:', error);
         toast.error('Erreur lors du chargement des données');
       } finally {
-        setLoadingMateriels(false);
+        setLoadingAchats(false);
         setLoadingBeneficiaires(false);
       }
     };
@@ -47,33 +68,126 @@ const AttributionMateriel = () => {
     loadData();
   }, []);
 
-  // Filtrer les matériels - VERSION CORRIGÉE avec vérification de null/undefined
-  const filteredMateriels = materielsDisponibles.filter(materiel => {
+  // 🔹 ÉTAPE 1 → ÉTAPE 2 : Charger les prix quand un achat est sélectionné
+  useEffect(() => {
+    const loadPrix = async () => {
+      if (!selectedAchat || !selectedAchat.id) {
+        setPrixList([]);
+        setSelectedPrix(null);
+        return;
+      }
+
+      try {
+        setLoadingPrix(true);
+        const prixRes = await getPrixByAchat(selectedAchat.id);
+        
+        // ✅ S'assurer que c'est un tableau
+        let data = prixRes.data;
+        if (Array.isArray(data)) {
+          setPrixList(data);
+        } else if (data && typeof data === 'object') {
+          const arrayData = data.content || data.prix || data.data || data.items || [];
+          setPrixList(Array.isArray(arrayData) ? arrayData : []);
+        } else {
+          setPrixList([]);
+        }
+        
+        // Réinitialiser les sélections suivantes
+        setSelectedPrix(null);
+        setSelectedMateriel(null);
+        setMaterielsDisponibles([]);
+      } catch (error) {
+        console.error('Erreur chargement prix:', error);
+        toast.error('Erreur lors du chargement des prix');
+        setPrixList([]);
+      } finally {
+        setLoadingPrix(false);
+      }
+    };
+
+    loadPrix();
+  }, [selectedAchat]);
+
+  // 🔹 ÉTAPE 2 → ÉTAPE 3 : Charger les matériels quand un prix est sélectionné
+  useEffect(() => {
+    const loadMateriels = async () => {
+      // ✅ VALIDATION : Ne pas appeler si pas de prix sélectionné
+      if (!selectedPrix || !selectedPrix.id) {
+        setMaterielsDisponibles([]);
+        setSelectedMateriel(null);
+        return;
+      }
+
+      try {
+        setLoadingMateriels(true);
+        
+        const materielsRes = await getMaterielsDisponiblesParPrix(selectedPrix.id);
+        
+        // ✅ S'assurer que c'est un tableau
+        let data = materielsRes.data;
+        console.log('Réponse API matériels:', data);
+        
+        if (Array.isArray(data)) {
+          setMaterielsDisponibles(data);
+        } else if (data && typeof data === 'object') {
+          const arrayData = data.content || data.materiels || data.data || data.items || [];
+          setMaterielsDisponibles(Array.isArray(arrayData) ? arrayData : []);
+        } else {
+          setMaterielsDisponibles([]);
+        }
+        
+        setSelectedMateriel(null);
+      } catch (error) {
+        console.error('Erreur chargement matériels:', error);
+        toast.error('Erreur lors du chargement des matériels');
+        setMaterielsDisponibles([]);
+      } finally {
+        setLoadingMateriels(false);
+      }
+    };
+
+    loadMateriels();
+  }, [selectedPrix]);
+
+  // Filtrer les achats
+  const filteredAchats = Array.isArray(achats) ? achats.filter(achat => {
+    if (!achat) return false;
+    const searchLower = achatSearch.toLowerCase();
+    return (
+      (achat.reference && achat.reference.toLowerCase().includes(searchLower)) ||
+      (achat.objet && achat.objet.toLowerCase().includes(searchLower)) ||
+      (achat.fournisseur?.nom && achat.fournisseur.nom.toLowerCase().includes(searchLower))
+    );
+  }) : [];
+
+  // Filtrer les prix
+  const filteredPrix = Array.isArray(prixList) ? prixList.filter(prix => {
+    if (!prix) return false;
+    const searchLower = prixSearch.toLowerCase();
+    return (
+      (prix.designation && prix.designation.toLowerCase().includes(searchLower)) ||
+      (prix.marque && prix.marque.toLowerCase().includes(searchLower)) ||
+      (prix.modele && prix.modele.toLowerCase().includes(searchLower))
+    );
+  }) : [];
+
+  // Filtrer les matériels
+  const filteredMateriels = Array.isArray(materielsDisponibles) ? materielsDisponibles.filter(materiel => {
     if (!materiel) return false;
-    
     const searchLower = materielSearch.toLowerCase();
     
-    // Vérifier le numéro d'inventaire
     const numeroInventaireMatch = materiel.numeroInventaire && 
                                  materiel.numeroInventaire.toLowerCase().includes(searchLower);
-    
-    // Vérifier le numéro de série
     const numeroSerieMatch = materiel.numeroSerie && 
                             materiel.numeroSerie.toLowerCase().includes(searchLower);
-    
-    // Vérifier le type
     const typeMatch = materiel.type?.designation && 
                      materiel.type.designation.toLowerCase().includes(searchLower);
     
-    // Vérifier la marque
-    const marqueMatch = materiel.marque?.nom && 
-                       materiel.marque.nom.toLowerCase().includes(searchLower);
-    
-    return numeroInventaireMatch || numeroSerieMatch || typeMatch || marqueMatch;
-  });
+    return numeroInventaireMatch || numeroSerieMatch || typeMatch;
+  }) : [];
 
   // Filtrer les bénéficiaires
-  const filteredBeneficiaires = beneficiaires.filter(beneficiaire => {
+  const filteredBeneficiaires = Array.isArray(beneficiaires) ? beneficiaires.filter(beneficiaire => {
     const searchLower = beneficiaireSearch.toLowerCase();
     return (
       (beneficiaire.nom && beneficiaire.nom.toLowerCase().includes(searchLower)) ||
@@ -81,7 +195,7 @@ const AttributionMateriel = () => {
       (beneficiaire.matricule && beneficiaire.matricule.toLowerCase().includes(searchLower)) ||
       (beneficiaire.email && beneficiaire.email.toLowerCase().includes(searchLower))
     );
-  });
+  }) : [];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -98,20 +212,19 @@ const AttributionMateriel = () => {
         materielId: selectedMateriel.id,
         beneficiaireId: selectedBeneficiaire.id,
         dateAttribution: dateAttribution,
-        observations: observations
+        observations: observations,
+        achatId: selectedAchat?.id,
+        prixId: selectedPrix?.id
       };
 
       const response = await attribuerMateriel(dto);
       
       if (response.data) {
         toast.success('Matériel attribué avec succès !');
-        
-        // Réinitialiser le formulaire
         resetForm();
-        
-        // Mettre à jour la liste des matériels disponibles
-        const materielsRes = await getAllMateriels();
-        setMaterielsDisponibles(materielsRes.data || []);
+        // Recharger les achats pour mettre à jour les disponibilités
+        const achatsRes = await getAllAchats();
+        setAchats(Array.isArray(achatsRes.data) ? achatsRes.data : []);
       }
     } catch (error) {
       console.error('Erreur attribution:', error);
@@ -122,25 +235,163 @@ const AttributionMateriel = () => {
   };
 
   const resetForm = () => {
+    setSelectedAchat(null);
+    setSelectedPrix(null);
     setSelectedMateriel(null);
     setSelectedBeneficiaire(null);
     setDateAttribution(new Date().toISOString().split('T')[0]);
     setObservations('');
+    setAchatSearch('');
+    setPrixSearch('');
     setMaterielSearch('');
     setBeneficiaireSearch('');
+    setPrixList([]);
+    setMaterielsDisponibles([]);
+    setShowAchatDropdown(false);
+    setShowPrixDropdown(false);
     setShowMaterielDropdown(false);
     setShowBeneficiaireDropdown(false);
   };
 
-  const clearMaterielSelection = () => {
-    setSelectedMateriel(null);
-    setMaterielSearch('');
-  };
+  // Composant Dropdown réutilisable
+  const DropdownField = ({ 
+    label, 
+    stepNumber, 
+    selectedValue, 
+    showDropdown, 
+    setShowDropdown, 
+    searchValue, 
+    setSearchValue, 
+    filteredItems, 
+    loading, 
+    placeholder, 
+    onSelect, 
+    onClear, 
+    renderDisplay, 
+    renderItem,
+    icon: Icon,
+    disabled = false
+  }) => (
+    <div className="mb-8">
+      <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+        <span className={`w-8 h-8 rounded-full flex items-center justify-center mr-2 ${
+          selectedValue ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+        }`}>
+          {stepNumber}
+        </span>
+        {label}
+      </h3>
+      
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => {
+            if (!disabled) {
+              setShowDropdown(!showDropdown);
+            }
+          }}
+          disabled={disabled}
+          className={`w-full p-4 border rounded-xl text-left flex justify-between items-center transition-all ${
+            disabled ? 'bg-gray-100 cursor-not-allowed' : 
+            selectedValue ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-gray-400'
+          }`}
+        >
+          <div className="flex items-center">
+            <Icon className={`mr-3 ${selectedValue ? 'text-green-500' : 'text-blue-500'}`} />
+            <div>
+              {selectedValue ? (
+                renderDisplay(selectedValue)
+              ) : (
+                <span className="text-gray-500">{placeholder}</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center">
+            {selectedValue && (
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClear();
+                }}
+                className="mr-2 text-gray-400 hover:text-gray-600"
+              >
+                <FiX size={18} />
+              </button>
+            )}
+            <FiChevronDown className={`transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
 
-  const clearBeneficiaireSelection = () => {
-    setSelectedBeneficiaire(null);
-    setBeneficiaireSearch('');
-  };
+        {showDropdown && !disabled && (
+          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-80 overflow-y-auto">
+            <div className="p-3 border-b">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  placeholder="Rechercher..."
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+              </div>
+            </div>
+            
+            <div className="py-2">
+              {loading ? (
+                <div className="p-4 text-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                  <p className="mt-2 text-sm text-gray-500">Chargement...</p>
+                </div>
+              ) : !filteredItems || filteredItems.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  {searchValue.trim() === '' ? 'Aucun élément trouvé' : `Aucun résultat pour "${searchValue}"`}
+                </div>
+              ) : (
+                filteredItems.map(item => (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      onSelect(item);
+                      setShowDropdown(false);
+                      setSearchValue('');
+                    }}
+                    className={`px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                      selectedValue?.id === item.id ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    {renderItem(item)}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selectedValue && (
+        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center">
+            <FiCheck className="text-green-500 mr-2" />
+            <div className="flex-1">
+              <span className="font-medium text-green-800">Sélectionné:</span>
+              <div className="text-sm text-green-700">
+                {renderDisplay(selectedValue)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDropdown(true)}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Changer
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -151,298 +402,217 @@ const AttributionMateriel = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Attribution de Matériel</h2>
-            <p className="text-gray-600">Attribuer un matériel disponible à un bénéficiaire</p>
+            <p className="text-gray-600">Workflow : Achat → Prix → Matériel → Bénéficiaire</p>
+          </div>
+        </div>
+
+        {/* Barre de progression */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            {[
+              { label: 'Achat', icon: FiShoppingCart, completed: !!selectedAchat },
+              { label: 'Prix', icon: FiDollarSign, completed: !!selectedPrix },
+              { label: 'Matériel', icon: FiPackage, completed: !!selectedMateriel },
+              { label: 'Bénéficiaire', icon: FiUser, completed: !!selectedBeneficiaire }
+            ].map((step, index) => (
+              <div key={index} className="flex items-center flex-1">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+                  step.completed ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>
+                  <step.icon size={20} />
+                </div>
+                <span className={`ml-2 text-sm font-medium ${
+                  step.completed ? 'text-green-600' : 'text-gray-500'
+                }`}>
+                  {step.label}
+                </span>
+                {index < 3 && (
+                  <div className={`flex-1 h-1 mx-2 ${
+                    step.completed ? 'bg-green-500' : 'bg-gray-200'
+                  }`} />
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* Sélection du matériel */}
-          <div className="mb-8">
-            <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <span className="bg-blue-100 text-blue-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">1</span>
-              Sélectionnez un matériel disponible
-            </h3>
-            
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMaterielDropdown(!showMaterielDropdown);
-                  setShowBeneficiaireDropdown(false);
-                }}
-                className={`w-full p-4 border rounded-xl text-left flex justify-between items-center transition-all ${
-                  selectedMateriel 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiPackage className="mr-3 text-blue-500" />
-                  <div>
-                    {selectedMateriel ? (
-                      <>
-                        <div className="font-medium text-gray-800">
-                          {selectedMateriel.numeroInventaire || 'Sans numéro d\'inventaire'}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {selectedMateriel.type?.designation || 'N/A'} • {selectedMateriel.marque?.nom || 'N/A'}  • {selectedMateriel.numeroSerie || 'N/A'}
-                        </div>
-                      </>
-                    ) : (
-                      <span className="text-gray-500">Cliquez pour sélectionner un matériel...</span>
-                    )}
-                  </div>
+          {/* ÉTAPE 1 : Sélection de l'achat */}
+          <DropdownField
+            label="Sélectionnez un achat"
+            stepNumber={1}
+            selectedValue={selectedAchat}
+            showDropdown={showAchatDropdown}
+            setShowDropdown={setShowAchatDropdown}
+            searchValue={achatSearch}
+            setSearchValue={setAchatSearch}
+            filteredItems={filteredAchats}
+            loading={loadingAchats}
+            placeholder="Cliquez pour sélectionner un achat..."
+            icon={FiShoppingCart}
+            onSelect={setSelectedAchat}
+            onClear={() => {
+              setSelectedAchat(null);
+              setSelectedPrix(null);
+              setSelectedMateriel(null);
+              setPrixList([]);
+              setMaterielsDisponibles([]);
+            }}
+            renderDisplay={(achat) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {achat.reference || `Achat #${achat.id}`}
                 </div>
-                <div className="flex items-center">
-                  {selectedMateriel && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        clearMaterielSelection();
-                      }}
-                      className="mr-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiX size={18} />
-                    </button>
-                  )}
-                  <FiChevronDown className={`transition-transform ${showMaterielDropdown ? 'rotate-180' : ''}`} />
+                <div className="text-sm text-gray-600">
+                  {achat.objet || 'Sans objet'} 
+                  {achat.fournisseur?.nom && ` • ${achat.fournisseur.nom}`}
                 </div>
-              </button>
-
-              {showMaterielDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-80 overflow-y-auto">
-                  <div className="p-3 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={materielSearch}
-                        onChange={(e) => setMaterielSearch(e.target.value)}
-                        placeholder="Rechercher par n° inventaire, série, type..."
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
-                    </div>
-                  </div>
-                  
-                  <div className="py-2">
-                    {loadingMateriels ? (
-                      <div className="p-4 text-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                        <p className="mt-2 text-sm text-gray-500">Chargement des matériels...</p>
-                      </div>
-                    ) : filteredMateriels.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">
-                        {materielSearch.trim() === '' 
-                          ? 'Aucun matériel disponible trouvé' 
-                          : `Aucun matériel trouvé pour "${materielSearch}"`}
-                      </div>
-                    ) : (
-                      filteredMateriels.map(materiel => (
-                        <div
-                          key={materiel.id}
-                          onClick={() => {
-                            setSelectedMateriel(materiel);
-                            setShowMaterielDropdown(false);
-                            setMaterielSearch('');
-                          }}
-                          className={`px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                            selectedMateriel?.id === materiel.id ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="font-medium text-gray-800">
-                            {materiel.numeroInventaire || `Matériel #${materiel.id}`}
-                            {materiel.numeroSerie && ` (S/N: ${materiel.numeroSerie})`}
-                          </div>
-                          <div className="text-sm text-gray-600 flex justify-between mt-1">
-                            <span>{materiel.type?.designation || 'N/A'}</span>
-                            <span>{materiel.marque?.nom || 'N/A'}</span>
-                          </div>
-                          {materiel.caracteristiques && Object.keys(materiel.caracteristiques).length > 0 && (
-                            <div className="text-xs text-gray-500 mt-1 truncate">
-                              {Object.entries(materiel.caracteristiques)
-                                .slice(0, 2)
-                                .map(([key, value]) => `${key}: ${value}`)
-                                .join(', ')}
-                              {Object.keys(materiel.caracteristiques).length > 2 && '...'}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {selectedMateriel && (
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center">
-                  <FiCheck className="text-green-500 mr-2" />
-                  <div className="flex-1">
-                    <span className="font-medium text-green-800">Matériel sélectionné:</span>
-                    <div className="text-sm text-green-700">
-                      {selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`} • 
-                      {selectedMateriel.type?.designation ? ` ${selectedMateriel.type.designation} •` : ''}
-                      {selectedMateriel.marque?.nom ? ` ${selectedMateriel.marque.nom} •` : ''}
-                      {selectedMateriel.numeroSerie ? ` S/N: ${selectedMateriel.numeroSerie}` : ''}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowMaterielDropdown(true)}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    Changer
-                  </button>
-                </div>
-              </div>
+              </>
             )}
-          </div>
-
-          {/* Sélection du bénéficiaire */}
-          <div className="mb-8">
-            <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <span className="bg-blue-100 text-blue-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">2</span>
-              Sélectionnez un bénéficiaire
-            </h3>
-            
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBeneficiaireDropdown(!showBeneficiaireDropdown);
-                  setShowMaterielDropdown(false);
-                }}
-                className={`w-full p-4 border rounded-xl text-left flex justify-between items-center transition-all ${
-                  selectedBeneficiaire 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiUser className="mr-3 text-blue-500" />
-                  <div>
-                    {selectedBeneficiaire ? (
-                      <>
-                        <div className="font-medium text-gray-800">
-                          {selectedBeneficiaire.nom} {selectedBeneficiaire.prenom}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          {selectedBeneficiaire.matricule ? `${selectedBeneficiaire.matricule} • ` : ''}
-                          {selectedBeneficiaire.departement?.nom || selectedBeneficiaire.service?.nom || 'N/A'}
-                        </div>
-                      </>
-                    ) : (
-                      <span className="text-gray-500">Cliquez pour sélectionner un bénéficiaire...</span>
-                    )}
-                  </div>
+            renderItem={(achat) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {achat.reference || `Achat #${achat.id}`}
                 </div>
-                <div className="flex items-center">
-                  {selectedBeneficiaire && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        clearBeneficiaireSelection();
-                      }}
-                      className="mr-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiX size={18} />
-                    </button>
-                  )}
-                  <FiChevronDown className={`transition-transform ${showBeneficiaireDropdown ? 'rotate-180' : ''}`} />
+                <div className="text-sm text-gray-600 flex justify-between mt-1">
+                  <span>{achat.objet || 'Sans objet'}</span>
+                  <span>{achat.fournisseur?.nom || 'N/A'}</span>
                 </div>
-              </button>
-
-              {showBeneficiaireDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-80 overflow-y-auto">
-                  <div className="p-3 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={beneficiaireSearch}
-                        onChange={(e) => setBeneficiaireSearch(e.target.value)}
-                        placeholder="Rechercher un bénéficiaire..."
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
-                    </div>
-                  </div>
-                  
-                  <div className="py-2">
-                    {loadingBeneficiaires ? (
-                      <div className="p-4 text-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                        <p className="mt-2 text-sm text-gray-500">Chargement des bénéficiaires...</p>
-                      </div>
-                    ) : filteredBeneficiaires.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">
-                        Aucun bénéficiaire trouvé
-                      </div>
-                    ) : (
-                      filteredBeneficiaires.map(beneficiaire => (
-                        <div
-                          key={beneficiaire.id}
-                          onClick={() => {
-                            setSelectedBeneficiaire(beneficiaire);
-                            setShowBeneficiaireDropdown(false);
-                            setBeneficiaireSearch('');
-                          }}
-                          className={`px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                            selectedBeneficiaire?.id === beneficiaire.id ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="font-medium text-gray-800">
-                            {beneficiaire.nom} {beneficiaire.prenom}
-                          </div>
-                          <div className="text-sm text-gray-600 flex justify-between mt-1">
-                            <span>
-                              {beneficiaire.matricule ? `Matricule: ${beneficiaire.matricule}` : 'Sans matricule'}
-                            </span>
-                            <span>{beneficiaire.departement?.nom || beneficiaire.service?.nom || 'N/A'}</span>
-                          </div>
-                          {beneficiaire.email && (
-                            <div className="text-xs text-gray-500 mt-1 truncate">
-                              {beneficiaire.email}
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {selectedBeneficiaire && (
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center">
-                  <FiCheck className="text-green-500 mr-2" />
-                  <div className="flex-1">
-                    <span className="font-medium text-green-800">Bénéficiaire sélectionné:</span>
-                    <div className="text-sm text-green-700">
-                      {selectedBeneficiaire.nom} {selectedBeneficiaire.prenom} • 
-                      {selectedBeneficiaire.matricule ? ` ${selectedBeneficiaire.matricule} •` : ''}
-                      {selectedBeneficiaire.departement?.nom || selectedBeneficiaire.service?.nom || ''}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowBeneficiaireDropdown(true)}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    Changer
-                  </button>
-                </div>
-              </div>
+              </>
             )}
-          </div>
+          />
+
+          {/* ÉTAPE 2 : Sélection du prix */}
+          <DropdownField
+            label="Sélectionnez un prix"
+            stepNumber={2}
+            selectedValue={selectedPrix}
+            showDropdown={showPrixDropdown}
+            setShowDropdown={setShowPrixDropdown}
+            searchValue={prixSearch}
+            setSearchValue={setPrixSearch}
+            filteredItems={filteredPrix}
+            loading={loadingPrix}
+            placeholder={!selectedAchat ? "Sélectionnez d'abord un achat" : "Cliquez pour sélectionner un prix..."}
+            icon={FiDollarSign}
+            disabled={!selectedAchat}
+            onSelect={setSelectedPrix}
+            onClear={() => {
+              setSelectedPrix(null);
+              setSelectedMateriel(null);
+              setMaterielsDisponibles([]);
+            }}
+            renderDisplay={(prix) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {prix.designation || `Prix #${prix.id}`}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {prix.marque && `${prix.marque} • `}
+                  {prix.modele && `${prix.modele} • `}
+                  {prix.prixUnitaire && `${prix.prixUnitaire.toLocaleString('fr-MA')} DH`}
+                </div>
+              </>
+            )}
+            renderItem={(prix) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {prix.designation || `Prix #${prix.id}`}
+                </div>
+                <div className="text-sm text-gray-600 flex justify-between mt-1">
+                  <span>{prix.marque || 'N/A'} {prix.modele && `• ${prix.modele}`}</span>
+                  <span className="font-semibold text-blue-600">
+                    {prix.prixUnitaire?.toLocaleString('fr-MA') || '0'} DH
+                  </span>
+                </div>
+              </>
+            )}
+          />
+
+          {/* ÉTAPE 3 : Sélection du matériel */}
+          <DropdownField
+            label="Sélectionnez un matériel disponible"
+            stepNumber={3}
+            selectedValue={selectedMateriel}
+            showDropdown={showMaterielDropdown}
+            setShowDropdown={setShowMaterielDropdown}
+            searchValue={materielSearch}
+            setSearchValue={setMaterielSearch}
+            filteredItems={filteredMateriels}
+            loading={loadingMateriels}
+            placeholder={!selectedPrix ? "Sélectionnez d'abord un prix" : "Cliquez pour sélectionner un matériel..."}
+            icon={FiPackage}
+            disabled={!selectedPrix}
+            onSelect={setSelectedMateriel}
+            onClear={setSelectedMateriel}
+            renderDisplay={(materiel) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {materiel.numeroInventaire || `Matériel #${materiel.id}`}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {materiel.type?.designation || 'N/A'} • {materiel.marque?.nom || 'N/A'} • {materiel.numeroSerie || 'N/A'}
+                </div>
+              </>
+            )}
+            renderItem={(materiel) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {materiel.numeroInventaire || `Matériel #${materiel.id}`}
+                  {materiel.numeroSerie && ` (S/N: ${materiel.numeroSerie})`}
+                </div>
+                <div className="text-sm text-gray-600 flex justify-between mt-1">
+                  <span>{materiel.type?.designation || 'N/A'}</span>
+                  <span>{materiel.marque?.nom || 'N/A'}</span>
+                </div>
+              </>
+            )}
+          />
+
+          {/* ÉTAPE 4 : Sélection du bénéficiaire */}
+          <DropdownField
+            label="Sélectionnez un bénéficiaire"
+            stepNumber={4}
+            selectedValue={selectedBeneficiaire}
+            showDropdown={showBeneficiaireDropdown}
+            setShowDropdown={setShowBeneficiaireDropdown}
+            searchValue={beneficiaireSearch}
+            setSearchValue={setBeneficiaireSearch}
+            filteredItems={filteredBeneficiaires}
+            loading={loadingBeneficiaires}
+            placeholder={!selectedMateriel ? "Sélectionnez d'abord un matériel" : "Cliquez pour sélectionner un bénéficiaire..."}
+            icon={FiUser}
+            disabled={!selectedMateriel}
+            onSelect={setSelectedBeneficiaire}
+            onClear={setSelectedBeneficiaire}
+            renderDisplay={(beneficiaire) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {beneficiaire.nom} {beneficiaire.prenom}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {beneficiaire.matricule ? `${beneficiaire.matricule} • ` : ''}
+                  {beneficiaire.departement?.nom || beneficiaire.service?.nom || 'N/A'}
+                </div>
+              </>
+            )}
+            renderItem={(beneficiaire) => (
+              <>
+                <div className="font-medium text-gray-800">
+                  {beneficiaire.nom} {beneficiaire.prenom}
+                </div>
+                <div className="text-sm text-gray-600 flex justify-between mt-1">
+                  <span>{beneficiaire.matricule ? `Mat: ${beneficiaire.matricule}` : 'Sans matricule'}</span>
+                  <span>{beneficiaire.departement?.nom || beneficiaire.service?.nom || 'N/A'}</span>
+                </div>
+              </>
+            )}
+          />
 
           {/* Date d'attribution */}
           <div className="mb-6">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <span className="bg-blue-100 text-blue-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">3</span>
+              <span className="bg-blue-100 text-blue-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">5</span>
               Date d'attribution
             </h3>
             <input
@@ -452,15 +622,12 @@ const AttributionMateriel = () => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
-            <p className="text-sm text-gray-500 mt-1">
-              Par défaut, la date du jour est sélectionnée
-            </p>
           </div>
 
           {/* Observations */}
           <div className="mb-8">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-              <span className="bg-blue-100 text-blue-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">4</span>
+              <span className="bg-blue-100 text-blue-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">6</span>
               Observations (optionnel)
             </h3>
             <textarea
@@ -504,27 +671,15 @@ const AttributionMateriel = () => {
       </div>
 
       {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
           <div className="flex items-center">
             <div className="bg-blue-100 p-2 rounded-lg mr-3">
-              <FiPackage className="text-blue-600" />
+              <FiShoppingCart className="text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Matériels disponibles</p>
-              <p className="text-2xl font-bold text-gray-800">{materielsDisponibles.length}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
-          <div className="flex items-center">
-            <div className="bg-green-100 p-2 rounded-lg mr-3">
-              <FiUser className="text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Bénéficiaires</p>
-              <p className="text-2xl font-bold text-gray-800">{beneficiaires.length}</p>
+              <p className="text-sm text-gray-500">Achats</p>
+              <p className="text-2xl font-bold text-gray-800">{Array.isArray(achats) ? achats.length : 0}</p>
             </div>
           </div>
         </div>
@@ -532,12 +687,36 @@ const AttributionMateriel = () => {
         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
           <div className="flex items-center">
             <div className="bg-purple-100 p-2 rounded-lg mr-3">
-              <FiInfo className="text-purple-600" />
+              <FiDollarSign className="text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Prêt pour attribution</p>
+              <p className="text-sm text-gray-500">Prix chargés</p>
+              <p className="text-2xl font-bold text-gray-800">{Array.isArray(prixList) ? prixList.length : 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+          <div className="flex items-center">
+            <div className="bg-green-100 p-2 rounded-lg mr-3">
+              <FiPackage className="text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Matériels dispo</p>
+              <p className="text-2xl font-bold text-gray-800">{Array.isArray(materielsDisponibles) ? materielsDisponibles.length : 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+          <div className="flex items-center">
+            <div className="bg-orange-100 p-2 rounded-lg mr-3">
+              <FiUser className="text-orange-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Prêt à attribuer</p>
               <p className="text-2xl font-bold text-gray-800">
-                {selectedMateriel && selectedBeneficiaire ? '1' : '0'}
+                {selectedMateriel && selectedBeneficiaire ? '✓' : '0'}
               </p>
             </div>
           </div>

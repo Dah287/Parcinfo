@@ -9,18 +9,17 @@ import {
   FiInfo,
   FiShoppingCart,
   FiChevronDown,
-  FiSearch
+  FiSearch,
+  FiLayers,
+  FiPrinter,
+  FiCpu,
+  FiHardDrive,
+  FiMonitor,
+  FiCheckCircle
 } from 'react-icons/fi';
-
 import { 
   getAllAchats, 
-  searchAchats, 
-  createAchat,
-  updateAchat,
-  deleteAchat,
-  getPrixByAchat,
-  getStats,
-  importerPrixExcel
+  importerPrixExcel 
 } from '../../services/achatService';
 import * as XLSX from 'xlsx';
 
@@ -36,149 +35,151 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
   const [loadingAchats, setLoadingAchats] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAchatDropdown, setShowAchatDropdown] = useState(false);
+  const [showAllColumns, setShowAllColumns] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   // Charger la liste des achats
   useEffect(() => {
     fetchAchats();
   }, []);
 
-const fetchAchats = async () => {
-  try {
-    setLoadingAchats(true);
-    const response = await getAllAchats(); // Utilisation de la méthode existante
-    setAchats(response.data); // Avec Axios, les données sont dans response.data
-  } catch (err) {
-    setError('Erreur lors du chargement des achats');
-    console.error(err);
-  } finally {
-    setLoadingAchats(false);
-  }
-};
+  // Fonction sécurisée pour fermer le modal
+  const handleClose = () => {
+    if (onClose && typeof onClose === 'function') {
+      onClose();
+    } else {
+      console.warn('onClose n\'est pas une fonction valide');
+    }
+  };
+
+  const fetchAchats = async () => {
+    try {
+      setLoadingAchats(true);
+      const response = await getAllAchats();
+      setAchats(response.data);
+    } catch (err) {
+      setError('Erreur lors du chargement des achats');
+      console.error(err);
+    } finally {
+      setLoadingAchats(false);
+    }
+  };
 
   const filteredAchats = achats.filter(achat => {
     return achat.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
            achat.fournisseur?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  const handleFileSelect = (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
 
-// Dans votre composant AddPrixExcel, remplacez la fonction handleFileSelect :
-
-const handleFileSelect = (e) => {
-  const selectedFile = e.target.files[0];
-  if (!selectedFile) return;
-
-  // Vérifier le type de fichier
-  if (!selectedFile.name.match(/\.(xlsx|xls)$/i)) {
-    setError('Veuillez sélectionner un fichier Excel (.xlsx ou .xls)');
-    return;
-  }
-
-  setFile(selectedFile);
-  setError(null);
-  setImportResult(null);
-  
-  // Lire et parser le fichier Excel
-  parseExcelFile(selectedFile);
-};
-
-// Nouvelle fonction pour parser le fichier Excel
-const parseExcelFile = (file) => {
-  const reader = new FileReader();
-  
-  reader.onload = (event) => {
-    try {
-      const data = new Uint8Array(event.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      // Prendre la première feuille
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      
-      // Convertir en JSON
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-        header: 1, // Lire comme tableau de lignes
-        defval: '', // Valeur par défaut pour les cellules vides
-        blankrows: false // Ignorer les lignes vides
-      });
-
-      // Analyser les données
-      const parsedData = parseExcelData(jsonData);
-      setPreviewData(parsedData);
-      setPreviewMode(true);
-      
-    } catch (error) {
-      console.error('Erreur lors de la lecture du fichier Excel:', error);
-      setError('Erreur lors de la lecture du fichier Excel. Vérifiez le format.');
-      setPreviewData([]);
+    if (!selectedFile.name.match(/\.(xlsx|xls)$/i)) {
+      setError('Veuillez sélectionner un fichier Excel (.xlsx ou .xls)');
+      return;
     }
-  };
-  
-  reader.onerror = (error) => {
-    console.error('Erreur FileReader:', error);
-    setError('Erreur lors de la lecture du fichier');
-    setPreviewData([]);
-  };
-  
-  reader.readAsArrayBuffer(file);
-};
 
-// Fonction pour parser les données Excel
-const parseExcelData = (rows) => {
-  if (!rows || rows.length < 2) {
-    return [];
-  }
-
-  // Ignorer l'en-tête (première ligne)
-  const dataRows = rows.slice(1);
-  const parsedRows = [];
-
-  for (let i = 0; i < dataRows.length; i++) {
-    const row = dataRows[i];
+    setFile(selectedFile);
+    setError(null);
+    setImportResult(null);
+    setSuccessMessage(null);
     
-    // Vérifier si la ligne est vide
-    if (!row || row.length === 0 || !row[0]) {
-      continue;
+    parseExcelFile(selectedFile);
+  };
+
+  const parseExcelFile = (file) => {
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          defval: '',
+          blankrows: false
+        });
+
+        const parsedData = parseExcelData(jsonData);
+        setPreviewData(parsedData);
+        setPreviewMode(true);
+        
+      } catch (error) {
+        console.error('Erreur lors de la lecture du fichier Excel:', error);
+        setError('Erreur lors de la lecture du fichier Excel. Vérifiez le format.');
+        setPreviewData([]);
+      }
+    };
+    
+    reader.onerror = (error) => {
+      console.error('Erreur FileReader:', error);
+      setError('Erreur lors de la lecture du fichier');
+      setPreviewData([]);
+    };
+    
+    reader.readAsArrayBuffer(file);
+  };
+
+  const parseExcelData = (rows) => {
+    if (!rows || rows.length < 2) {
+      return [];
     }
 
-    // Extraire les données (5 colonnes)
-    const numeroPrix = row[0]?.toString().trim() || '';
-    const designation = row[1]?.toString().trim() || '';
-    const unite = row[2]?.toString().trim() || 'U';
-    const quantite = parseFloat(row[3]) || 0;
-    const prixUnitaireHT = parseFloat(row[4]) || 0;
+    const dataRows = rows.slice(1);
+    const parsedRows = [];
 
-    // Ne pas ajouter les lignes vides ou les notes
-    if (numeroPrix.toUpperCase().includes('NOTE') || 
-        designation.toUpperCase().includes('NOTE')) {
-      continue;
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      
+      if (!row || row.length === 0 || !row[0]) {
+        continue;
+      }
+
+      if (row[0]?.toString().toUpperCase().includes('NOTE') || 
+          row[1]?.toString().toUpperCase().includes('NOTE')) {
+        continue;
+      }
+
+      const prix = {
+        numeroPrix: row[0]?.toString().trim() || '',
+        designation: row[1]?.toString().trim() || '',
+        nature: row[2]?.toString().trim() || '',
+        typeImprimante: row[3]?.toString().trim() || '',
+        marque: row[4]?.toString().trim() || '',
+        inventorie: parseBoolean(row[5]),
+        parc: parseBoolean(row[6]),
+        formatPapier: row[7]?.toString().trim() || '',
+        puissanceOnduleur: row[8]?.toString().trim() || '',
+        processeur: row[9]?.toString().trim() || '',
+        disque: row[10]?.toString().trim() || '',
+        vitesse: row[11]?.toString().trim() || '',
+        ram: row[12]?.toString().trim() || '',
+        ecran: row[13]?.toString().trim() || '',
+        ecranInventorie: parseBoolean(row[14]),
+        systemeExploitation: row[15]?.toString().trim() || '',
+        unite: row[16]?.toString().trim() || 'U',
+        quantite: parseFloat(row[17]) || 0,
+        prixUnitaireHT: parseFloat(row[18]) || 0
+      };
+
+      if (prix.numeroPrix || prix.designation || prix.quantite > 0 || prix.prixUnitaireHT > 0) {
+        parsedRows.push(prix);
+      }
+
+      if (parsedRows.length >= 20) break;
     }
 
-    // Ajouter uniquement si au moins un champ est rempli
-    if (numeroPrix || designation || quantite > 0 || prixUnitaireHT > 0) {
-      parsedRows.push({
-        numeroPrix,
-        designation,
-        unite,
-        quantite,
-        prixUnitaireHT
-      });
-    }
+    return parsedRows;
+  };
 
-    // Limiter à 20 lignes pour l'aperçu
-    if (parsedRows.length >= 20) break;
-  }
-
-  return parsedRows;
-};
-
-  const simulatePreview = (selectedFile) => {
-    // Simulation d'aperçu - À remplacer par un vrai parsing Excel
-    const simulatedData = [
-      { numeroPrix: 'P001', designation: 'Ordinateur portable', unite: 'U', quantite: 5, prixUnitaireHT: 1200.00 },
-      { numeroPrix: 'P002', designation: 'Souris sans fil', unite: 'U', quantite: 10, prixUnitaireHT: 25.50 },
-      { numeroPrix: 'P003', designation: 'Clavier USB', unite: 'U', quantite: 8, prixUnitaireHT: 45.00 },
-    ];
-    setPreviewData(simulatedData);
+  const parseBoolean = (cell) => {
+    if (!cell) return false;
+    const value = cell.toString().trim().toLowerCase();
+    return value === 'oui' || value === 'true' || value === '1' || value === 'yes';
   };
 
   const handleImport = async () => {
@@ -192,70 +193,97 @@ const parseExcelData = (rows) => {
       return;
     }
 
-try {
-    setImporting(true);
-    setError(null);
+    try {
+      setImporting(true);
+      setError(null);
+      setSuccessMessage(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
+      const formData = new FormData();
+      formData.append('file', file);
 
-    // Si vous utilisez Axios :
-    const response = await importerPrixExcel(selectedAchat.id, formData);
-    const result = response.data; // Les données sont ici
+      const response = await importerPrixExcel(selectedAchat.id, formData);
+      const result = response.data;
 
-    setImportResult(result);
+      setImportResult(result);
 
-    if (result.succes && onSuccess) {
-        onSuccess(result.lignesImportees, result.lignesMiseAJour, selectedAchat.id);
+      if (result.succes) {
+        const message = `✅ Importation réussie !\n` +
+          `📊 ${result.lignesImportees} nouveau(x) prix importé(s)\n` +
+          `🔄 ${result.lignesMiseAJour} prix mis à jour\n` +
+          `📦 Total: ${result.lignesImportees + result.lignesMiseAJour} prix traités`;
+        
+        setSuccessMessage(message);
+        
+        // Notification visuelle
+        alert(message);
+
+        if (onSuccess && typeof onSuccess === 'function') {
+          onSuccess(result.lignesImportees, result.lignesMiseAJour, selectedAchat.id);
+        }
+
+        // Fermer le modal après 2 secondes si tout est OK
+        setTimeout(() => {
+          if (result.lignesEnErreur === 0) {
+            handleClose();
+          }
+        }, 2000);
+      }
+    } catch (err) {
+      console.error(err);
+      const errorMsg = err.response?.data?.message || err.message || 'Une erreur est survenue lors de l\'importation';
+      setError(errorMsg);
+      alert(`❌ Erreur: ${errorMsg}`);
+    } finally {
+      setImporting(false);
     }
-} catch (err) {
-    console.error(err);
-    setError(err.response?.data?.message || err.message || 'Une erreur est survenue lors de l\'importation');
-} finally {
-    setImporting(false);
-}
-
   };
 
-const downloadTemplate = () => {
-  // Créer les données du modèle
-  const templateData = [
-    ['Numéro Prix', 'Désignation', 'Unité', 'Quantité', 'Prix HT (DH)'],
-    ['P001', 'Ordinateur portable Dell', 'U', '5', '1200.00'],
-    ['P002', 'Souris sans fil Logitech', 'U', '10', '25.50'],
-    ['P003', 'Clavier USB', 'U', '8', '45.00']
-    // ,
-    // ['', '', '', '', ''],
-    // ['NOTES:', '', '', '', ''],
-    // ['- Ne modifiez pas les noms de colonnes', '', '', '', ''],
-    // ['- Remplissez les données à partir de la ligne 2', '', '', '', ''],
-    // ['- Enregistrez le fichier en format .xlsx', '', '', '', '']
-  ];
+  const downloadTemplate = () => {
+    const templateData = [
+      [
+        'Numéro Prix', 'Désignation', 'Nature', 'Type Imprimante', 'Marque',
+        'Inventorié', 'Parc', 'Format Papier', 'Puissance Onduleur', 'Processeur',
+        'Disque', 'Vitesse', 'RAM', 'Ecran', 'Ecran Inventorié',
+        'Système Exploitation', 'Unité', 'Quantité', 'Prix HT (DH)'
+      ],
+      [
+        'P001', 'Ordinateur portable Dell', 'Ordinateur', '', 'Dell',
+        'Oui', 'Oui', '', '', 'Intel Core i7',
+        '512GB SSD', '3.4 GHz', '16GB', '15.6"', 'Non',
+        'Windows 11', 'U', '5', '1200.00'
+      ],
+      [
+        'P002', 'Imprimante Laser HP', 'Imprimante', 'Laser', 'HP',
+        'Oui', 'Oui', 'A4', '', '',
+        '', '20 ppm', '', '', '',
+        '', 'U', '3', '350.00'
+      ],
+      [
+        'P003', 'Onduleur APC', 'Onduleur', '', 'APC',
+        'Oui', 'Oui', '', '1000VA', '',
+        '', '', '', '', '',
+        '', 'U', '2', '250.00'
+      ]
+    ];
 
-  // Créer un workbook et une worksheet
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
 
-  // Ajuster la largeur des colonnes
-  ws['!cols'] = [
-    { wch: 15 }, // Numéro Prix
-    { wch: 40 }, // Désignation
-    { wch: 10 }, // Unité
-    { wch: 12 }, // Quantité
-    { wch: 15 }, // Prix HT
-  ];
+    ws['!cols'] = [
+      { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
+      { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 15 }
+    ];
 
-  // Ajouter la worksheet au workbook
-  XLSX.utils.book_append_sheet(wb, ws, 'Modèle Prix');
+    XLSX.utils.book_append_sheet(wb, ws, 'Modèle Prix');
 
-  // Générer le nom du fichier
-  const fileName = selectedAchat 
-    ? `modele_prix_${selectedAchat.reference.replace(/[^a-z0-9]/gi, '_')}.xlsx`
-    : 'modele_importation_prix_achat.xlsx';
+    const fileName = selectedAchat 
+      ? `modele_prix_${selectedAchat.reference.replace(/[^a-z0-9]/gi, '_')}.xlsx`
+      : 'modele_importation_prix_complet.xlsx';
 
-  // Télécharger le fichier
-  XLSX.writeFile(wb, fileName);
-};
+    XLSX.writeFile(wb, fileName);
+  };
 
   const calculateTotalPreview = () => {
     return previewData.reduce((total, prix) => {
@@ -263,20 +291,44 @@ const downloadTemplate = () => {
     }, 0).toFixed(2);
   };
 
+  const getIconForNature = (nature) => {
+    if (!nature) return <FiLayers />;
+    const natureLower = nature.toLowerCase();
+    if (natureLower.includes('imprimante')) return <FiPrinter className="text-purple-500" />;
+    if (natureLower.includes('ordinateur') || natureLower.includes('pc')) return <FiCpu className="text-blue-500" />;
+    if (natureLower.includes('disque')) return <FiHardDrive className="text-green-500" />;
+    if (natureLower.includes('ecran') || natureLower.includes('moniteur')) return <FiMonitor className="text-indigo-500" />;
+    return <FiLayers className="text-gray-500" />;
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl mx-auto">
+    <div className="bg-white rounded-lg shadow-xl p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Importation Excel des prix</h2>
-          <p className="text-gray-600">Ajouter des prix à un achat via fichier Excel</p>
+          <p className="text-gray-600">Ajouter des prix avec toutes leurs caractéristiques techniques</p>
         </div>
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="text-gray-400 hover:text-gray-600"
         >
           <FiX size={24} />
         </button>
       </div>
+
+      {/* Message de succès */}
+      {successMessage && (
+        <div className="mb-6 p-4 bg-green-100 border-l-4 border-green-500 text-green-800 rounded-lg flex items-start animate-pulse">
+          <FiCheckCircle className="text-green-600 text-2xl mr-3 flex-shrink-0" />
+          <div>
+            <h3 className="font-bold text-lg">Succès !</h3>
+            <p className="whitespace-pre-line">{successMessage}</p>
+            <p className="text-sm mt-2 text-green-600">
+              La page va se fermer automatiquement...
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Étape 1 : Sélection de l'achat */}
       <div className="mb-8">
@@ -355,9 +407,6 @@ const downloadTemplate = () => {
                         <span>{achat.fournisseur?.nom}</span>
                         <span>{new Date(achat.date).toLocaleDateString('fr-FR')}</span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {achat.prixList?.length || 0} prix • {achat.type}
-                      </div>
                     </div>
                   ))
                 )}
@@ -373,8 +422,7 @@ const downloadTemplate = () => {
               <div>
                 <span className="font-medium text-green-800">Achat sélectionné:</span>
                 <div className="text-sm text-green-700">
-                  {selectedAchat.reference} • {selectedAchat.fournisseur?.nom} • 
-                  Total: {(selectedAchat.prixList || []).reduce((sum, p) => sum + (p.quantite * p.prixUnitaireHT), 0).toFixed(2)} DH
+                  {selectedAchat.reference} • {selectedAchat.fournisseur?.nom}
                 </div>
               </div>
             </div>
@@ -447,27 +495,84 @@ const downloadTemplate = () => {
 
       {/* Instructions */}
       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg mb-6">
-        <h3 className="font-semibold text-yellow-800 mb-2 flex items-center">
-          <FiInfo className="mr-2" /> Format Excel requis
-        </h3>
-        <div className="text-sm text-yellow-700">
-          <p className="mb-1">Le fichier doit contenir exactement 5 colonnes dans cet ordre :</p>
-          <div className="grid grid-cols-5 gap-2 mt-2">
-            <div className="bg-white p-2 rounded border text-center font-medium">Colonne A</div>
-            <div className="bg-white p-2 rounded border text-center font-medium">Colonne B</div>
-            <div className="bg-white p-2 rounded border text-center font-medium">Colonne C</div>
-            <div className="bg-white p-2 rounded border text-center font-medium">Colonne D</div>
-            <div className="bg-white p-2 rounded border text-center font-medium">Colonne E</div>
-            <div className="text-center text-xs font-semibold">Numéro Prix</div>
-            <div className="text-center text-xs font-semibold">Désignation</div>
-            <div className="text-center text-xs font-semibold">Unité</div>
-            <div className="text-center text-xs font-semibold">Quantité</div>
-            <div className="text-center text-xs font-semibold">Prix HT (DH)</div>
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="font-semibold text-yellow-800 mb-2 flex items-center">
+              <FiInfo className="mr-2" /> Format Excel requis (19 colonnes)
+            </h3>
+            <div className="text-sm text-yellow-700">
+              <p className="mb-2">Le fichier doit contenir ces colonnes dans l'ordre :</p>
+              <button
+                onClick={() => setShowAllColumns(!showAllColumns)}
+                className="text-blue-600 hover:text-blue-800 text-xs font-medium mb-2"
+              >
+                {showAllColumns ? 'Masquer les détails' : 'Voir tous les champs'}
+              </button>
+            </div>
           </div>
-          <p className="mt-3">
-            <strong>Important :</strong> La première ligne doit contenir les en-têtes.
-          </p>
         </div>
+
+        {showAllColumns && (
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">1. N° Prix</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">2. Désignation</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">3. Nature</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">4. Type Imprimante</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">5. Marque</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">6. Inventorié</span> (Oui/Non)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">7. Parc</span> (Oui/Non)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">8. Format Papier</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">9. Puissance Onduleur</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">10. Processeur</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">11. Disque</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">12. Vitesse</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">13. RAM</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">14. Ecran</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">15. Ecran Inventorié</span> (Oui/Non)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">16. Système Exploitation</span> (texte)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">17. Unité</span> (U, LOT, etc.)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">18. Quantité</span> (nombre)
+            </div>
+            <div className="bg-white p-2 rounded border text-xs">
+              <span className="font-bold">19. Prix HT</span> (nombre)
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bouton d'aperçu */}
@@ -482,31 +587,38 @@ const downloadTemplate = () => {
           </button>
 
           {previewMode && (
-            <div className="mt-3 bg-gray-50 p-4 rounded-lg">
+            <div className="mt-3 bg-gray-50 p-4 rounded-lg overflow-x-auto">
               <h4 className="font-medium text-gray-700 mb-3">
                 Aperçu des données ({previewData.length} lignes)
               </h4>
               <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border border-gray-200 rounded">
+                <table className="min-w-full bg-white border border-gray-200 rounded text-xs">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">N° Prix</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Désignation</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Unité</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Quantité</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Prix HT</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Total HT</th>
+                      <th className="px-2 py-1">N°</th>
+                      <th className="px-2 py-1">Désignation</th>
+                      <th className="px-2 py-1">Nature</th>
+                      <th className="px-2 py-1">Marque</th>
+                      <th className="px-2 py-1">Qté</th>
+                      <th className="px-2 py-1">Prix HT</th>
+                      <th className="px-2 py-1">Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewData.map((prix, index) => (
                       <tr key={index} className="border-t">
-                        <td className="px-3 py-2">{prix.numeroPrix}</td>
-                        <td className="px-3 py-2">{prix.designation}</td>
-                        <td className="px-3 py-2">{prix.unite}</td>
-                        <td className="px-3 py-2">{prix.quantite}</td>
-                        <td className="px-3 py-2">{prix.prixUnitaireHT.toFixed(2)} DH</td>
-                        <td className="px-3 py-2 font-medium">
+                        <td className="px-2 py-1">{prix.numeroPrix}</td>
+                        <td className="px-2 py-1 max-w-xs truncate">{prix.designation}</td>
+                        <td className="px-2 py-1">
+                          <div className="flex items-center">
+                            {getIconForNature(prix.nature)}
+                            <span className="ml-1">{prix.nature || '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1">{prix.marque || '-'}</td>
+                        <td className="px-2 py-1">{prix.quantite}</td>
+                        <td className="px-2 py-1">{prix.prixUnitaireHT.toFixed(2)}</td>
+                        <td className="px-2 py-1 font-medium">
                           {(prix.quantite * prix.prixUnitaireHT).toFixed(2)} DH
                         </td>
                       </tr>
@@ -514,10 +626,10 @@ const downloadTemplate = () => {
                   </tbody>
                   <tfoot className="bg-gray-100">
                     <tr>
-                      <td colSpan="5" className="px-3 py-2 text-right font-medium">
+                      <td colSpan="6" className="px-2 py-1 text-right font-medium">
                         Total général:
                       </td>
-                      <td className="px-3 py-2 font-bold text-green-700">
+                      <td className="px-2 py-1 font-bold text-green-700">
                         {calculateTotalPreview()} DH
                       </td>
                     </tr>
@@ -565,7 +677,7 @@ const downloadTemplate = () => {
       )}
 
       {/* Message d'erreur */}
-      {error && (
+      {error && !successMessage && (
         <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">
           {error}
         </div>
@@ -581,7 +693,7 @@ const downloadTemplate = () => {
               <span className="text-orange-600">Étape 2 : Sélectionnez un fichier Excel</span>
             ) : (
               <span className="text-green-600">
-                Prêt à importer {previewData.length} prix
+                Prêt à importer {previewData.length} prix avec leurs caractéristiques
               </span>
             )}
           </p>
@@ -589,7 +701,7 @@ const downloadTemplate = () => {
         
         <div className="flex gap-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
             disabled={importing}
           >
@@ -598,7 +710,7 @@ const downloadTemplate = () => {
           
           <button
             onClick={handleImport}
-            disabled={!selectedAchat || !file || importing}
+            disabled={!selectedAchat || !file || importing || successMessage}
             className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {importing ? (

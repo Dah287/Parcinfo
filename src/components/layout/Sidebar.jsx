@@ -81,6 +81,12 @@ const Sidebar = () => {
                   <span className="ml-1">Liste des achats</span>
                 </a>
               </li>
+                            <li>
+                <a href="/ConsultationPrixAchat" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiClipboard className="mr-2 text-blue-200" size={16} />
+                  <span className="ml-1">Consultation des prix</span>
+                </a>
+              </li>
               <li>
                 <a href="/add-achats-excel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiUpload className="mr-2 text-yellow-300" size={16} />
@@ -211,6 +217,12 @@ const Sidebar = () => {
           </div>
           {openSections.attributions && (
             <ul className="ml-6 mt-1 space-y-1">
+                            <li>
+                <a href="/attributions/PrisesEnChargeAchat" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
+                  <FiPlus className="mr-2 text-green-300" size={16} />
+                  <span className="ml-1">Prises en charge</span>
+                </a>
+              </li>
               <li>
                 <a href="/attributions/nouvelle" className="flex items-center hover:bg-blue-700 p-2 rounded-lg cursor-pointer transition-colors">
                   <FiPlus className="mr-2 text-green-300" size={16} />

@@ -15,6 +15,9 @@ import MultiReaffectation from "./components/materiels/MultiReaffectation";
 import HistoriqueMateriel from "./components/materiels/HistoriqueMateriel";
 import GestionFournisseurs from "./components/fournisseur/GestionFournisseurs";
 import AffectationComplete from "./components/materiels/AffectationComplete";
+import ConsultationPrixAchat from "./components/achats/ConsultationPrixAchat ";
+import PrisesEnChargeAchat from "./components/beneficiaire/PrisesEnChargeAchat";
+import PriseEnCharge from "./components/beneficiaire/PriseEnCharge";
 
 function App() {
   return (
@@ -40,6 +43,9 @@ function App() {
                    <Route path="/HistoriqueMateriel" element={<HistoriqueMateriel/>} />
                    <Route path="/GestionFournisseurs" element={<GestionFournisseurs/>} />
                    <Route path="/AffectationComplete" element={<AffectationComplete/>} />
+                     <Route path="/ConsultationPrixAchat" element={<ConsultationPrixAchat />} />
+                      <Route path="/attributions/PrisesEnChargeAchat" element={<PrisesEnChargeAchat />} />
+                      <Route path="/prise-en-charge/:achatId" element={<PriseEnCharge />} />
             </Routes>
           </main>
         </div>

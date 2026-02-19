@@ -40,3 +40,31 @@ export const reaffecterMateriel = (dto) =>
 // Libération d’un matériel
 export const libererMateriel = (id) =>
   axios.post(`${API_BASE_URL}/${id}/liberer`);
+
+
+// ✅ Version corrigée si l'endpoint utilise prixId
+// ✅ NOUVELLE VERSION - Utilise le nouvel endpoint avec prixId
+export const getMaterielsDisponiblesParPrix = (prixId) => {
+  if (!prixId) {
+    console.error('prixId est undefined!');
+    return Promise.reject(new Error('prixId requis'));
+  }
+  
+  return axios.get(`${API_BASE_URL}/prix/${prixId}/disponibles`)
+    .then(response => {
+      console.log('Matériaux pour prix', prixId, ':', response.data);
+      return response;
+    });
+};
+
+// ✅ NOUVELLES FONCTIONS POUR PRISE EN CHARGE
+
+// Récupérer les matériels attribués par achat et bénéficiaire
+export const getMaterielsAttribuesParAchatEtBeneficiaire = (achatId, beneficiaireId) => {
+  return axios.get(`${API_BASE_URL}/achat/${achatId}/beneficiaire/${beneficiaireId}/attribues`);
+};
+
+// Récupérer tous les bénéficiaires avec leurs matériels pour un achat
+export const getPriseEnChargeByAchat = (achatId) => {
+  return axios.get(`${API_BASE_URL}/achat/${achatId}/prise-en-charge`);
+};

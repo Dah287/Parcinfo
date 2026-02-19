@@ -105,7 +105,7 @@ const MaterielsTable = () => {
         } else {
           response = await getAllMateriels();
         }
-        
+        console.log('Matériels chargés:', response.data);
         setMateriels(response.data || []);
         setError(null);
       } catch (err) {
