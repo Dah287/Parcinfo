@@ -2,6 +2,7 @@ package com.example.parcinfo.model;
 
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
@@ -14,6 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = {"materiels"})
 public class Beneficiaire {
 
     @Id
@@ -45,7 +47,26 @@ public class Beneficiaire {
     @JsonIgnore
     private List<Material> materiels = new ArrayList<>();
 
+//    public String getNomComplet() {
+//        return nom + " " + prenom;
+//    }
+
+    // ✅ Champs calculés pour le frontend
+    @Transient
+    @JsonProperty("nomComplet")
     public String getNomComplet() {
-        return nom + " " + prenom;
+        return this.nom + " " + this.prenom;
     }
+
+//    @Transient
+//    @JsonProperty("departementNom")
+//    public String getDepartementNom() {
+//        return this.departement != null ? this. : null;
+//    }
+//
+//    @Transient
+//    @JsonProperty("serviceNom")
+//    public String getServiceNom() {
+//        return this.service != null ? this.service.getNom() : null;
+//    }
 }

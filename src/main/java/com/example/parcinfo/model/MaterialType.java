@@ -3,8 +3,6 @@ package com.example.parcinfo.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
-import java.util.HashMap;
-import java.util.Map;
 
 @Entity
 @Table(name = "types_materiel")
@@ -22,11 +20,7 @@ public class MaterialType {
     @Column(nullable = false, unique = true)
     private String designation; // Ex: "MICRO-ORDINATEUR", "IMPRIMANTE"
 
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "caracteristiques_obligatoires",  joinColumns = @JoinColumn(name = "type_id"))
-    @MapKeyColumn(name = "cle")
-    @Column(name = "valeur")
-    private Map<String, String> caracteristiquesObligatoires = new HashMap<>();
+    // ✅ SUPPRIMÉ : caracteristiquesObligatoires
 
     @Column(columnDefinition = "TEXT")
     private String description;

@@ -6,6 +6,7 @@ import com.example.parcinfo.model.Prix;
 import com.example.parcinfo.model.Fournisseur;
 import com.example.parcinfo.repository.MaterialTypeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +19,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MaterialGenerationService {
 
-    private final MaterialTypeRepository materialTypeRepository;
+    @Autowired
+    MaterialTypeRepository materialTypeRepository;
 
     @Transactional
     public List<Material> genererMateriels(Prix prix, Fournisseur fournisseur) {
@@ -34,13 +36,44 @@ public class MaterialGenerationService {
                     .type(type)  // ✅ Type déjà sauvegardé
                     .fournisseur(fournisseur)
                     .etat(Material.EtatMateriel.DISPONIBLE)
-                    .caracteristiques(genererCaracteristiquesParDefaut(type))
+                    .caracteristiques(genererCaracteristiques(prix)) // ✅ Utiliser les infos du prix
                     .build();
 
             materiels.add(materiel);
         }
 
         return materiels;
+    }
+
+    /**
+     * ✅ Génère les caractéristiques du matériel à partir des informations du prix
+     */
+    private Map<String, String> genererCaracteristiques(Prix prix) {
+        Map<String, String> caracteristiques = new HashMap<>();
+
+        // Récupérer toutes les informations du prix
+        if (prix.getNature() != null) caracteristiques.put("Nature", prix.getNature());
+        if (prix.getMarque() != null) caracteristiques.put("Marque", prix.getMarque());
+        if (prix.getProcesseur() != null) caracteristiques.put("Processeur", prix.getProcesseur());
+        if (prix.getDisque() != null) caracteristiques.put("Disque", prix.getDisque());
+        if (prix.getVitesse() != null) caracteristiques.put("Vitesse", prix.getVitesse());
+        if (prix.getRam() != null) caracteristiques.put("RAM", prix.getRam());
+        if (prix.getEcran() != null) caracteristiques.put("Ecran", prix.getEcran());
+        if (prix.getSystemeExploitation() != null) caracteristiques.put("Système d'exploitation", prix.getSystemeExploitation());
+
+        // Informations spécifiques
+        if (prix.getTypeImprimante() != null) caracteristiques.put("Type d'imprimante", prix.getTypeImprimante());
+        if (prix.getFormatPapier() != null) caracteristiques.put("Format papier", prix.getFormatPapier());
+        if (prix.getPuissanceOnduleur() != null) caracteristiques.put("Puissance onduleur", prix.getPuissanceOnduleur());
+
+        // Statuts
+        caracteristiques.put("Inventorié", prix.getInventorie() != null && prix.getInventorie() ? "Oui" : "Non");
+        caracteristiques.put("Dans le parc", prix.getParc() != null && prix.getParc() ? "Oui" : "Non");
+        if (prix.getEcranInventorie() != null) {
+            caracteristiques.put("Écran inventorié", prix.getEcranInventorie() ? "Oui" : "Non");
+        }
+
+        return caracteristiques;
     }
 
     /**
@@ -53,49 +86,14 @@ public class MaterialGenerationService {
         // Chercher si le type existe déjà
         return materialTypeRepository.findByDesignation(designationNormalisee)
                 .orElseGet(() -> {
-                    // Créer un nouveau type
+                    // Créer un nouveau type SANS caractéristiques obligatoires
                     MaterialType nouveauType = new MaterialType();
                     nouveauType.setDesignation(designationNormalisee);
-                    nouveauType.setCaracteristiquesObligatoires(
-                            creerCaracteristiquesObligatoires(designationNormalisee)
-                    );
+
+                    // ✅ PLUS DE CARACTERISTIQUES OBLIGATOIRES
 
                     // ✅ SAUVEGARDER le type en base AVANT de l'utiliser
                     return materialTypeRepository.save(nouveauType);
                 });
-    }
-
-    private Map<String, String> creerCaracteristiquesObligatoires(String designation) {
-        Map<String, String> caracteristiques = new HashMap<>();
-
-        if (designation.contains("ORDINATEUR") ||
-                designation.contains("PC") ||
-                designation.contains("MICRO")) {
-            caracteristiques.put("Ecran", "Oui");
-            caracteristiques.put("Processeur", "À définir");
-            caracteristiques.put("RAM", "À définir");
-            caracteristiques.put("Stockage", "À définir");
-            caracteristiques.put("SystemeExploitation", "À définir");
-        }
-        else if (designation.contains("IMPRIMANTE")) {
-            caracteristiques.put("TypeImprimante", "À définir");
-            caracteristiques.put("Couleur", "À définir");
-        }
-        else if (designation.contains("ECRAN")) {
-            caracteristiques.put("Taille", "À définir");
-            caracteristiques.put("Resolution", "À définir");
-        }
-
-        return caracteristiques;
-    }
-
-    private Map<String, String> genererCaracteristiquesParDefaut(MaterialType type) {
-        Map<String, String> caracteristiques = new HashMap<>();
-
-        if (type.getCaracteristiquesObligatoires() != null) {
-            caracteristiques.putAll(type.getCaracteristiquesObligatoires());
-        }
-
-        return caracteristiques;
     }
 }

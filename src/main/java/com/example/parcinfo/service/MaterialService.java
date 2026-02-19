@@ -259,4 +259,28 @@ public class MaterialService {
                 ? materiel.getNumeroInventaire()
                 : "Matériel #" + materiel.getId();
     }
+
+    public List<Material> getMaterielsDisponiblesParPrixId(Long prixId) {
+        return materialRepository.findByPrixIdAndEtat(prixId, Material.EtatMateriel.DISPONIBLE);
+    }
+
+    public List<Material> getMaterielsAttribuesParAchatEtBeneficiaire(Long achatId, Long beneficiaireId) {
+        return materialRepository.findByAchatIdAndBeneficiaireIdAndEtat(
+                achatId,
+                beneficiaireId,
+                Material.EtatMateriel.ATTRIBUE
+        );
+    }
+
+    public Map<Beneficiaire, List<Material>> getPriseEnChargeByAchat(Long achatId) {
+        List<Material> materiels = materialRepository.findByAchatIdAndEtat(
+                achatId,
+                Material.EtatMateriel.ATTRIBUE
+        );
+
+        // Grouper par bénéficiaire
+        return materiels.stream()
+                .filter(m -> m.getBeneficiaire() != null)
+                .collect(Collectors.groupingBy(Material::getBeneficiaire));
+    }
 }

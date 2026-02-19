@@ -83,25 +83,12 @@ public class ExcelImportService {
                     if (prixExistantOpt.isPresent()) {
                         // Mettre à jour le prix existant
                         Prix prixExistant = prixExistantOpt.get();
-
-                        prixExistant.setDesignation(dto.getDesignation());
-                        prixExistant.setUnite(dto.getUnite());
-                        prixExistant.setQuantite(dto.getQuantite());
-                        prixExistant.setPrixUnitaireHT(dto.getPrixUnitaireHT());
-
+                        mettreAJourPrix(prixExistant, dto);
                         prixRepository.save(prixExistant);
                         result.lignesMiseAJour++;
                     } else {
                         // Créer un nouveau prix
-                        Prix nouveauPrix = Prix.builder()
-                                .numeroPrix(dto.getNumeroPrix())
-                                .designation(dto.getDesignation())
-                                .unite(dto.getUnite())
-                                .quantite(dto.getQuantite())
-                                .prixUnitaireHT(dto.getPrixUnitaireHT())
-                                .achat(achat)
-                                .build();
-
+                        Prix nouveauPrix = creerPrix(dto, achat);
                         nouveauPrix = prixRepository.save(nouveauPrix);
 
                         // Générer les matériels avec le fournisseur de l'achat
@@ -128,6 +115,52 @@ public class ExcelImportService {
         }
 
         return result;
+    }
+
+    private Prix creerPrix(ExcelImportDTO dto, Achat achat) {
+        return Prix.builder()
+                .numeroPrix(dto.getNumeroPrix())
+                .designation(dto.getDesignation())
+                .nature(dto.getNature())
+                .typeImprimante(dto.getTypeImprimante())
+                .marque(dto.getMarque())
+                .inventorie(dto.getInventorie() != null ? dto.getInventorie() : false)
+                .parc(dto.getParc() != null ? dto.getParc() : false)
+                .formatPapier(dto.getFormatPapier())
+                .puissanceOnduleur(dto.getPuissanceOnduleur())
+                .processeur(dto.getProcesseur())
+                .disque(dto.getDisque())
+                .vitesse(dto.getVitesse())
+                .ram(dto.getRam())
+                .ecran(dto.getEcran())
+                .ecranInventorie(dto.getEcranInventorie() != null ? dto.getEcranInventorie() : false)
+                .systemeExploitation(dto.getSystemeExploitation())
+                .unite(dto.getUnite())
+                .quantite(dto.getQuantite())
+                .prixUnitaireHT(dto.getPrixUnitaireHT())
+                .achat(achat)
+                .build();
+    }
+
+    private void mettreAJourPrix(Prix prix, ExcelImportDTO dto) {
+        prix.setDesignation(dto.getDesignation());
+        prix.setNature(dto.getNature());
+        prix.setTypeImprimante(dto.getTypeImprimante());
+        prix.setMarque(dto.getMarque());
+        prix.setInventorie(dto.getInventorie() != null ? dto.getInventorie() : prix.getInventorie());
+        prix.setParc(dto.getParc() != null ? dto.getParc() : prix.getParc());
+        prix.setFormatPapier(dto.getFormatPapier());
+        prix.setPuissanceOnduleur(dto.getPuissanceOnduleur());
+        prix.setProcesseur(dto.getProcesseur());
+        prix.setDisque(dto.getDisque());
+        prix.setVitesse(dto.getVitesse());
+        prix.setRam(dto.getRam());
+        prix.setEcran(dto.getEcran());
+        prix.setEcranInventorie(dto.getEcranInventorie() != null ? dto.getEcranInventorie() : prix.getEcranInventorie());
+        prix.setSystemeExploitation(dto.getSystemeExploitation());
+        prix.setUnite(dto.getUnite());
+        prix.setQuantite(dto.getQuantite());
+        prix.setPrixUnitaireHT(dto.getPrixUnitaireHT());
     }
 
     // Ajoutez aussi la méthode remplacerPrix
@@ -167,18 +200,26 @@ public class ExcelImportService {
     private ExcelImportDTO lireLignePrix(Row row) {
         ExcelImportDTO dto = new ExcelImportDTO();
 
-        // Format Excel attendu (5 colonnes sans observations) :
-        // 0: Numéro Prix
-        // 1: Désignation
-        // 2: Unité
-        // 3: Quantité
-        // 4: Prix unitaire HT
-
+        // Format Excel attendu avec tous les nouveaux champs
         dto.setNumeroPrix(getStringCellValue(row.getCell(0)));
         dto.setDesignation(getStringCellValue(row.getCell(1)));
-        dto.setUnite(getStringCellValue(row.getCell(2)));
-        dto.setQuantite(getIntegerCellValue(row.getCell(3)));
-        dto.setPrixUnitaireHT(getBigDecimalCellValue(row.getCell(4)));
+        dto.setNature(getStringCellValue(row.getCell(2)));
+        dto.setTypeImprimante(getStringCellValue(row.getCell(3)));
+        dto.setMarque(getStringCellValue(row.getCell(4)));
+        dto.setInventorie(getBooleanCellValue(row.getCell(5)));
+        dto.setParc(getBooleanCellValue(row.getCell(6)));
+        dto.setFormatPapier(getStringCellValue(row.getCell(7)));
+        dto.setPuissanceOnduleur(getStringCellValue(row.getCell(8)));
+        dto.setProcesseur(getStringCellValue(row.getCell(9)));
+        dto.setDisque(getStringCellValue(row.getCell(10)));
+        dto.setVitesse(getStringCellValue(row.getCell(11)));
+        dto.setRam(getStringCellValue(row.getCell(12)));
+        dto.setEcran(getStringCellValue(row.getCell(13)));
+        dto.setEcranInventorie(getBooleanCellValue(row.getCell(14)));
+        dto.setSystemeExploitation(getStringCellValue(row.getCell(15)));
+        dto.setUnite(getStringCellValue(row.getCell(16)));
+        dto.setQuantite(getIntegerCellValue(row.getCell(17)));
+        dto.setPrixUnitaireHT(getBigDecimalCellValue(row.getCell(18)));
 
         // Validation
         if (dto.getNumeroPrix() == null || dto.getNumeroPrix().trim().isEmpty()) {
@@ -195,6 +236,20 @@ public class ExcelImportService {
         }
 
         return dto;
+    }
+
+    private Boolean getBooleanCellValue(Cell cell) {
+        if (cell == null) return false;
+
+        if (cell.getCellType() == CellType.BOOLEAN) {
+            return cell.getBooleanCellValue();
+        } else if (cell.getCellType() == CellType.STRING) {
+            String value = cell.getStringCellValue().trim().toLowerCase();
+            return value.equals("oui") || value.equals("true") || value.equals("1") || value.equals("yes");
+        } else if (cell.getCellType() == CellType.NUMERIC) {
+            return cell.getNumericCellValue() != 0;
+        }
+        return false;
     }
 
     private String getStringCellValue(Cell cell) {

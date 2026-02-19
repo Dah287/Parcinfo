@@ -3,6 +3,8 @@ package com.example.parcinfo.controller;
 import com.example.parcinfo.dto.AffectationCompleteDTO;
 import com.example.parcinfo.dto.AttributionMaterialDTO;
 import com.example.parcinfo.dto.MaterialDTO;
+import com.example.parcinfo.dto.PriseEnChargeDTO;
+import com.example.parcinfo.model.Beneficiaire;
 import com.example.parcinfo.model.Material;
 import com.example.parcinfo.repository.MaterialRepository;
 import com.example.parcinfo.service.MaterialService;
@@ -12,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/materiels")
@@ -246,6 +249,58 @@ public class MaterialController {
         try {
             Map<String, List<Material>> materielsParPrix = materialService.getMaterielsDisponiblesParPrix(achatId);
             return ResponseEntity.ok(materielsParPrix);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * ✅ NOUVEL ENDPOINT : Récupérer les matériels disponibles pour un prix spécifique
+     */
+    @GetMapping("/prix/{prixId}/disponibles")
+    public ResponseEntity<List<Material>> getMaterielsDisponiblesParPrix2(
+            @PathVariable Long prixId) {
+        try {
+            List<Material> materiels = materialService.getMaterielsDisponiblesParPrixId(prixId);
+            return ResponseEntity.ok(materiels);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+
+    /**
+     * ✅ NOUVEL ENDPOINT : Récupérer les matériels attribués par achat et bénéficiaire
+     */
+    @GetMapping("/achat/{achatId}/beneficiaire/{beneficiaireId}/attribues")
+    public ResponseEntity<List<Material>> getMaterielsAttribuesParAchatEtBeneficiaire(
+            @PathVariable Long achatId,
+            @PathVariable Long beneficiaireId) {
+        try {
+            List<Material> materiels = materialService.getMaterielsAttribuesParAchatEtBeneficiaire(achatId, beneficiaireId);
+            return ResponseEntity.ok(materiels);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * ✅ NOUVEL ENDPOINT : Récupérer tous les bénéficiaires avec leurs matériels pour un achat
+     */
+    @GetMapping("/achat/{achatId}/prise-en-charge")
+    public ResponseEntity<?> getPriseEnChargeByAchat(@PathVariable Long achatId) {
+        try {
+            Map<Beneficiaire, List<Material>> priseEnCharge = materialService.getPriseEnChargeByAchat(achatId);
+
+            // ✅ Convertir en DTO pour éviter les problèmes de sérialisation
+            List<PriseEnChargeDTO> dtoList = priseEnCharge.entrySet().stream()
+                    .map(entry -> new PriseEnChargeDTO(entry.getKey(), entry.getValue()))
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.ok(dtoList);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,

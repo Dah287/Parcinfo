@@ -14,6 +14,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = {"achats", "materiels"}) // ✅ EXCLURE LES RELATIONS DU toString()
 public class Fournisseur {
 
     @Id

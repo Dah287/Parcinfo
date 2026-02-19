@@ -15,6 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = {"fournisseur", "prixList"}) // ✅ EXCLURE LES RELATIONS DU toString()
 public class Achat {
 
     @Id
@@ -39,6 +40,7 @@ public class Achat {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "fournisseur_id", nullable = false)
+    @JsonIgnore // ✅ Pour JSON
     private Fournisseur fournisseur;
 
     @OneToMany(mappedBy = "achat", cascade = CascadeType.ALL, orphanRemoval = true)

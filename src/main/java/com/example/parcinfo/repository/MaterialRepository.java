@@ -61,4 +61,33 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
 //     */
 //    @Query("SELECT m FROM Material m JOIN m.prix p WHERE p.achat.id = :achatId")
 //    List<Material> findByAchatId(@Param("achatId") Long achatId);
+    /**
+     * ✅ Trouver les matériels disponibles pour un prix spécifique
+     */
+    List<Material> findByPrixIdAndEtat(Long prixId, Material.EtatMateriel etat);
+    /**
+     * ✅ Trouver les matériels attribués pour un achat et bénéficiaire spécifiques
+     */
+    @Query("SELECT m FROM Material m " +
+            "JOIN m.prix p " +
+            "WHERE p.achat.id = :achatId " +
+            "AND m.beneficiaire.id = :beneficiaireId " +
+            "AND m.etat = com.example.parcinfo.model.Material.EtatMateriel.ATTRIBUE")
+    List<Material> findByAchatIdAndBeneficiaireIdAndEtat(
+            @Param("achatId") Long achatId,
+            @Param("beneficiaireId") Long beneficiaireId,
+            Material.EtatMateriel etat
+    );
+
+    /**
+     * ✅ Trouver tous les matériels attribués pour un achat
+     */
+    @Query("SELECT m FROM Material m " +
+            "JOIN m.prix p " +
+            "WHERE p.achat.id = :achatId " +
+            "AND m.etat = com.example.parcinfo.model.Material.EtatMateriel.ATTRIBUE")
+    List<Material> findByAchatIdAndEtat(
+            @Param("achatId") Long achatId,
+            Material.EtatMateriel etat
+    );
 }

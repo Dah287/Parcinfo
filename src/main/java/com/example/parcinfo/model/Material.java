@@ -1,6 +1,7 @@
 package com.example.parcinfo.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -13,6 +14,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString(exclude = {"prix", "beneficiaire", "type", "marque"})
 public class Material {
 
     @Id
@@ -27,7 +29,7 @@ public class Material {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "prix_id", nullable = false)
-    @JsonIgnore
+    @JsonProperty("prix") // ✅ Force la sérialisation
     private Prix prix;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -44,6 +46,7 @@ public class Material {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "beneficiaire_id")
+    //@JsonIgnore
     private Beneficiaire beneficiaire;
 
     @ManyToOne(fetch = FetchType.LAZY)

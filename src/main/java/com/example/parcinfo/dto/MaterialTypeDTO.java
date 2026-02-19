@@ -22,11 +22,11 @@ public class MaterialTypeDTO {
 
     private String description;
 
-    public MaterialType toEntity() {
-        return MaterialType.builder()
-                .designation(designation)
-                .caracteristiquesObligatoires(caracteristiquesObligatoires)
-                .description(description)
-                .build();
-    }
+//    public MaterialType toEntity() {
+//        return MaterialType.builder()
+//                .designation(designation)
+//                .caracteristiquesObligatoires(caracteristiquesObligatoires)
+//                .description(description)
+//                .build();
+//    }
 }
