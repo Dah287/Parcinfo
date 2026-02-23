@@ -10,15 +10,14 @@ import {
   FiDownload,
   FiInfo,
   FiX,
+  FiChevronDown,
+  FiCheck,
   FiHash,
   FiTag,
-  FiBriefcase,
-  FiCheck,
-  FiChevronDown,
-  FiBox
+  FiBriefcase
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
-import { getAllMateriels, searchMateriels } from '../../services/materialService';
+import { getAllMateriels } from '../../services/materialService';
 import {
   getHistoriqueByMateriel
 } from '../../services/historiqueService';
@@ -32,25 +31,11 @@ const HistoriqueMateriel = () => {
   const [loadingMateriels, setLoadingMateriels] = useState(true);
   const [loadingHistorique, setLoadingHistorique] = useState(false);
   
-  // États pour les dropdowns de recherche
-  const [showNumeroInventaireDropdown, setShowNumeroInventaireDropdown] = useState(false);
-  const [showNumeroSerieDropdown, setShowNumeroSerieDropdown] = useState(false);
-  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-  const [showMarqueDropdown, setShowMarqueDropdown] = useState(false);
-  const [showBeneficiaireDropdown, setShowBeneficiaireDropdown] = useState(false);
+  // États pour le dropdown de sélection du matériel
+  const [showMaterielDropdown, setShowMaterielDropdown] = useState(false);
+  const [materielSearch, setMaterielSearch] = useState('');
   
-  const [numeroInventaireSearch, setNumeroInventaireSearch] = useState('');
-  const [numeroSerieSearch, setNumeroSerieSearch] = useState('');
-  const [typeSearch, setTypeSearch] = useState('');
-  const [marqueSearch, setMarqueSearch] = useState('');
-  const [beneficiaireSearch, setBeneficiaireSearch] = useState('');
-  
-  const [selectedNumeroInventaire, setSelectedNumeroInventaire] = useState(null);
-  const [selectedNumeroSerie, setSelectedNumeroSerie] = useState(null);
-  const [selectedType, setSelectedType] = useState(null);
-  const [selectedMarque, setSelectedMarque] = useState(null);
-  const [selectedBeneficiaire, setSelectedBeneficiaire] = useState(null);
-  
+  const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     typeOperation: 'all',
     dateFrom: '',
@@ -62,37 +47,6 @@ const HistoriqueMateriel = () => {
     reaffectations: 0,
     liberations: 0
   });
-
-  // Extraire les valeurs uniques pour les filtres
-  const uniqueTypes = [...new Set(materiels
-    .map(m => m.type?.designation)
-    .filter(Boolean)
-  )];
-
-  const uniqueMarques = [...new Set(materiels
-    .map(m => m.marque?.nom)
-    .filter(Boolean)
-  )];
-
-  const uniqueNumerosInventaire = materiels
-    .map(m => m.numeroInventaire)
-    .filter(Boolean);
-
-  const uniqueNumerosSerie = materiels
-    .map(m => m.numeroSerie)
-    .filter(Boolean);
-
-  const uniqueBeneficiaires = materiels
-    .filter(m => m.beneficiaire)
-    .map(m => ({
-      id: m.beneficiaire.id,
-      nom: `${m.beneficiaire.nom} ${m.beneficiaire.prenom}`,
-      matricule: m.beneficiaire.matricule,
-      departement: m.beneficiaire.departement?.nom
-    }))
-    .filter((value, index, self) => 
-      self.findIndex(b => b.id === value.id) === index
-    );
 
   // Charger les matériels
   useEffect(() => {
@@ -112,35 +66,22 @@ const HistoriqueMateriel = () => {
     loadMateriels();
   }, []);
 
-  // Filtrer les matériels en fonction des critères sélectionnés
-  useEffect(() => {
-    let filtered = [...materiels];
+  // Filtrer les matériels pour la recherche
+  const filteredMateriels = materiels.filter(materiel => {
+    if (!materielSearch.trim()) return true;
     
-    if (selectedNumeroInventaire) {
-      filtered = filtered.filter(m => m.numeroInventaire === selectedNumeroInventaire);
-    }
+    const searchLower = materielSearch.toLowerCase();
     
-    if (selectedNumeroSerie) {
-      filtered = filtered.filter(m => m.numeroSerie === selectedNumeroSerie);
-    }
-    
-    if (selectedType) {
-      filtered = filtered.filter(m => m.type?.designation === selectedType);
-    }
-    
-    if (selectedMarque) {
-      filtered = filtered.filter(m => m.marque?.nom === selectedMarque);
-    }
-    
-    if (selectedBeneficiaire) {
-      filtered = filtered.filter(m => m.beneficiaire?.id === selectedBeneficiaire.id);
-    }
-    
-    // Si un matériel est sélectionné mais ne correspond plus aux filtres, le désélectionner
-    if (selectedMateriel && !filtered.find(m => m.id === selectedMateriel.id)) {
-      setSelectedMateriel(null);
-    }
-  }, [selectedNumeroInventaire, selectedNumeroSerie, selectedType, selectedMarque, selectedBeneficiaire, materiels]);
+    return (
+      (materiel.numeroInventaire && materiel.numeroInventaire.toLowerCase().includes(searchLower)) ||
+      (materiel.numeroSerie && materiel.numeroSerie.toLowerCase().includes(searchLower)) ||
+      (materiel.type?.designation && materiel.type.designation.toLowerCase().includes(searchLower)) ||
+      (materiel.marque?.nom && materiel.marque.nom.toLowerCase().includes(searchLower)) ||
+      (materiel.beneficiaire?.nom && materiel.beneficiaire.nom.toLowerCase().includes(searchLower)) ||
+      (materiel.beneficiaire?.prenom && materiel.beneficiaire.prenom.toLowerCase().includes(searchLower)) ||
+      (materiel.beneficiaire?.matricule && materiel.beneficiaire.matricule.toLowerCase().includes(searchLower))
+    );
+  });
 
   // Charger l'historique quand un matériel est sélectionné
   useEffect(() => {
@@ -152,11 +93,9 @@ const HistoriqueMateriel = () => {
 
       try {
         setLoadingHistorique(true);
-        const data = await getHistoriqueByMateriel(selectedMateriel.id);
-        setHistorique(data);
-        
-        // Calculer les statistiques
-        calculateStats(data);
+const response = await getHistoriqueByMateriel(selectedMateriel.id);
+setHistorique(response.data); // ← c'est ça qui contient le tableau
+calculateStats(response.data);
       } catch (error) {
         console.error('Erreur chargement historique:', error);
         toast.error('Erreur lors du chargement de l\'historique');
@@ -178,23 +117,9 @@ const HistoriqueMateriel = () => {
     setStats(stats);
   };
 
-  const resetAllFilters = () => {
-    setSelectedNumeroInventaire(null);
-    setSelectedNumeroSerie(null);
-    setSelectedType(null);
-    setSelectedMarque(null);
-    setSelectedBeneficiaire(null);
-    setNumeroInventaireSearch('');
-    setNumeroSerieSearch('');
-    setTypeSearch('');
-    setMarqueSearch('');
-    setBeneficiaireSearch('');
+  const clearMaterielSelection = () => {
     setSelectedMateriel(null);
-    setShowNumeroInventaireDropdown(false);
-    setShowNumeroSerieDropdown(false);
-    setShowTypeDropdown(false);
-    setShowMarqueDropdown(false);
-    setShowBeneficiaireDropdown(false);
+    setMaterielSearch('');
   };
 
   const filterHistorique = () => {
@@ -210,6 +135,16 @@ const HistoriqueMateriel = () => {
       }
       if (filters.dateTo && new Date(item.dateOperation) > new Date(filters.dateTo)) {
         return false;
+      }
+
+      // Filtre par recherche
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          (item.description && item.description.toLowerCase().includes(searchLower)) ||
+          (item.ancienBeneficiaireNom && item.ancienBeneficiaireNom.toLowerCase().includes(searchLower)) ||
+          (item.nouveauBeneficiaireNom && item.nouveauBeneficiaireNom.toLowerCase().includes(searchLower))
+        );
       }
 
       return true;
@@ -264,6 +199,23 @@ const HistoriqueMateriel = () => {
     }
   };
 
+  const getEtatColor = (etat) => {
+    switch (etat) {
+      case 'ATTRIBUE':
+        return 'bg-green-100 text-green-800';
+      case 'DISPONIBLE':
+        return 'bg-blue-100 text-blue-800';
+      case 'EN_PANNE':
+        return 'bg-red-100 text-red-800';
+      case 'EN_REPARATION':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'HORS_SERVICE':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   const filteredHistorique = filterHistorique();
 
   return (
@@ -280,523 +232,500 @@ const HistoriqueMateriel = () => {
           </div>
         </div>
 
-        {/* Filtres de recherche avancée */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
-          {/* Filtre par numéro d'inventaire */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Numéro d'inventaire
-            </label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowNumeroInventaireDropdown(!showNumeroInventaireDropdown);
-                  setShowNumeroSerieDropdown(false);
-                  setShowTypeDropdown(false);
-                  setShowMarqueDropdown(false);
-                  setShowBeneficiaireDropdown(false);
-                }}
-                className={`w-full p-3 border rounded-lg text-left flex justify-between items-center transition-all ${
-                  selectedNumeroInventaire 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiHash className="mr-2 text-blue-500" />
-                  <span className={selectedNumeroInventaire ? 'text-gray-800' : 'text-gray-500'}>
-                    {selectedNumeroInventaire || 'Rechercher par n° inventaire...'}
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  {selectedNumeroInventaire && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedNumeroInventaire(null);
-                      }}
-                      className="mr-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  )}
-                  <FiChevronDown className={`transition-transform ${showNumeroInventaireDropdown ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
-
-              {showNumeroInventaireDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={numeroInventaireSearch}
-                        onChange={(e) => setNumeroInventaireSearch(e.target.value)}
-                        placeholder="Rechercher un n° inventaire..."
-                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <FiSearch className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
-                    </div>
-                  </div>
-                  
-                  <div className="py-1">
-                    {uniqueNumerosInventaire
-                      .filter(num => 
-                        !numeroInventaireSearch || 
-                        num.toLowerCase().includes(numeroInventaireSearch.toLowerCase())
-                      )
-                      .map((numero, index) => (
-                        <div
-                          key={index}
-                          onClick={() => {
-                            setSelectedNumeroInventaire(numero);
-                            setShowNumeroInventaireDropdown(false);
-                            setNumeroInventaireSearch('');
-                          }}
-                          className={`px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                            selectedNumeroInventaire === numero ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="text-sm text-gray-800">{numero}</div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Filtre par numéro de série */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Numéro de série
-            </label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowNumeroSerieDropdown(!showNumeroSerieDropdown);
-                  setShowNumeroInventaireDropdown(false);
-                  setShowTypeDropdown(false);
-                  setShowMarqueDropdown(false);
-                  setShowBeneficiaireDropdown(false);
-                }}
-                className={`w-full p-3 border rounded-lg text-left flex justify-between items-center transition-all ${
-                  selectedNumeroSerie 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiTag className="mr-2 text-blue-500" />
-                  <span className={selectedNumeroSerie ? 'text-gray-800' : 'text-gray-500'}>
-                    {selectedNumeroSerie || 'Rechercher par n° série...'}
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  {selectedNumeroSerie && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedNumeroSerie(null);
-                      }}
-                      className="mr-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  )}
-                  <FiChevronDown className={`transition-transform ${showNumeroSerieDropdown ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
-
-              {showNumeroSerieDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={numeroSerieSearch}
-                        onChange={(e) => setNumeroSerieSearch(e.target.value)}
-                        placeholder="Rechercher un n° de série..."
-                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <FiSearch className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
-                    </div>
-                  </div>
-                  
-                  <div className="py-1">
-                    {uniqueNumerosSerie
-                      .filter(num => 
-                        !numeroSerieSearch || 
-                        num.toLowerCase().includes(numeroSerieSearch.toLowerCase())
-                      )
-                      .map((numero, index) => (
-                        <div
-                          key={index}
-                          onClick={() => {
-                            setSelectedNumeroSerie(numero);
-                            setShowNumeroSerieDropdown(false);
-                            setNumeroSerieSearch('');
-                          }}
-                          className={`px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                            selectedNumeroSerie === numero ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="text-sm text-gray-800">{numero}</div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Filtre par type */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Type de matériel
-            </label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTypeDropdown(!showTypeDropdown);
-                  setShowNumeroInventaireDropdown(false);
-                  setShowNumeroSerieDropdown(false);
-                  setShowMarqueDropdown(false);
-                  setShowBeneficiaireDropdown(false);
-                }}
-                className={`w-full p-3 border rounded-lg text-left flex justify-between items-center transition-all ${
-                  selectedType 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiPackage className="mr-2 text-blue-500" />
-                  <span className={selectedType ? 'text-gray-800' : 'text-gray-500'}>
-                    {selectedType || 'Rechercher par type...'}
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  {selectedType && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedType(null);
-                      }}
-                      className="mr-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  )}
-                  <FiChevronDown className={`transition-transform ${showTypeDropdown ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
-
-              {showTypeDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={typeSearch}
-                        onChange={(e) => setTypeSearch(e.target.value)}
-                        placeholder="Rechercher un type..."
-                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <FiSearch className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
-                    </div>
-                  </div>
-                  
-                  <div className="py-1">
-                    {uniqueTypes
-                      .filter(type => 
-                        !typeSearch || 
-                        type.toLowerCase().includes(typeSearch.toLowerCase())
-                      )
-                      .map((type, index) => (
-                        <div
-                          key={index}
-                          onClick={() => {
-                            setSelectedType(type);
-                            setShowTypeDropdown(false);
-                            setTypeSearch('');
-                          }}
-                          className={`px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                            selectedType === type ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="text-sm text-gray-800">{type}</div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Filtre par marque */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Marque
-            </label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMarqueDropdown(!showMarqueDropdown);
-                  setShowNumeroInventaireDropdown(false);
-                  setShowNumeroSerieDropdown(false);
-                  setShowTypeDropdown(false);
-                  setShowBeneficiaireDropdown(false);
-                }}
-                className={`w-full p-3 border rounded-lg text-left flex justify-between items-center transition-all ${
-                  selectedMarque 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiBriefcase className="mr-2 text-blue-500" />
-                  <span className={selectedMarque ? 'text-gray-800' : 'text-gray-500'}>
-                    {selectedMarque || 'Rechercher par marque...'}
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  {selectedMarque && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedMarque(null);
-                      }}
-                      className="mr-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  )}
-                  <FiChevronDown className={`transition-transform ${showMarqueDropdown ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
-
-              {showMarqueDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={marqueSearch}
-                        onChange={(e) => setMarqueSearch(e.target.value)}
-                        placeholder="Rechercher une marque..."
-                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <FiSearch className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
-                    </div>
-                  </div>
-                  
-                  <div className="py-1">
-                    {uniqueMarques
-                      .filter(marque => 
-                        !marqueSearch || 
-                        marque.toLowerCase().includes(marqueSearch.toLowerCase())
-                      )
-                      .map((marque, index) => (
-                        <div
-                          key={index}
-                          onClick={() => {
-                            setSelectedMarque(marque);
-                            setShowMarqueDropdown(false);
-                            setMarqueSearch('');
-                          }}
-                          className={`px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                            selectedMarque === marque ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="text-sm text-gray-800">{marque}</div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Filtre par bénéficiaire */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Bénéficiaire
-            </label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBeneficiaireDropdown(!showBeneficiaireDropdown);
-                  setShowNumeroInventaireDropdown(false);
-                  setShowNumeroSerieDropdown(false);
-                  setShowTypeDropdown(false);
-                  setShowMarqueDropdown(false);
-                }}
-                className={`w-full p-3 border rounded-lg text-left flex justify-between items-center transition-all ${
-                  selectedBeneficiaire 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <div className="flex items-center">
-                  <FiUser className="mr-2 text-blue-500" />
-                  <span className={selectedBeneficiaire ? 'text-gray-800' : 'text-gray-500'}>
-                    {selectedBeneficiaire ? selectedBeneficiaire.nom : 'Rechercher un bénéficiaire...'}
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  {selectedBeneficiaire && (
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedBeneficiaire(null);
-                      }}
-                      className="mr-2 text-gray-400 hover:text-gray-600"
-                    >
-                      <FiX size={16} />
-                    </button>
-                  )}
-                  <FiChevronDown className={`transition-transform ${showBeneficiaireDropdown ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
-
-              {showBeneficiaireDropdown && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  <div className="p-2 border-b">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={beneficiaireSearch}
-                        onChange={(e) => setBeneficiaireSearch(e.target.value)}
-                        placeholder="Rechercher un bénéficiaire..."
-                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <FiSearch className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
-                    </div>
-                  </div>
-                  
-                  <div className="py-1">
-                    {uniqueBeneficiaires
-                      .filter(benef => 
-                        !beneficiaireSearch || 
-                        benef.nom.toLowerCase().includes(beneficiaireSearch.toLowerCase()) ||
-                        benef.matricule?.toLowerCase().includes(beneficiaireSearch.toLowerCase())
-                      )
-                      .map((benef, index) => (
-                        <div
-                          key={benef.id}
-                          onClick={() => {
-                            setSelectedBeneficiaire(benef);
-                            setShowBeneficiaireDropdown(false);
-                            setBeneficiaireSearch('');
-                          }}
-                          className={`px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                            selectedBeneficiaire?.id === benef.id ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <div className="font-medium text-gray-800 text-sm">{benef.nom}</div>
-                          <div className="text-xs text-gray-600">
-                            {benef.matricule ? `Matricule: ${benef.matricule}` : ''}
-                          </div>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Bouton de réinitialisation */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 opacity-0">
-              Réinitialiser
-            </label>
-            <button
-              onClick={resetAllFilters}
-              className="w-full p-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center"
-            >
-              <FiX className="mr-2" />
-              Réinitialiser tous les filtres
-            </button>
-          </div>
-        </div>
-
-        {/* Sélection du matériel après filtrage */}
-        <div className="mt-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Sélectionner un matériel
-          </label>
+        {/* Sélection du matériel avec dropdown amélioré */}
+        <div className="mb-6">
+          <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+            <span className="bg-indigo-100 text-indigo-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">1</span>
+            Sélectionnez un matériel
+          </h3>
+          
           <div className="relative">
-            <select
-              value={selectedMateriel?.id || ''}
-              onChange={(e) => {
-                const materielId = e.target.value;
-                const materiel = materiels.find(m => m.id === parseInt(materielId));
-                setSelectedMateriel(materiel || null);
-              }}
-              className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              disabled={loadingMateriels}
+            <button
+              type="button"
+              onClick={() => setShowMaterielDropdown(!showMaterielDropdown)}
+              className={`w-full p-4 border rounded-xl text-left flex justify-between items-center transition-all ${
+                selectedMateriel 
+                  ? 'border-indigo-500 bg-indigo-50' 
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
             >
-              <option value="">Choisir un matériel dans la liste filtrée...</option>
-              {materiels
-                .filter(m => {
-                  if (selectedNumeroInventaire && m.numeroInventaire !== selectedNumeroInventaire) return false;
-                  if (selectedNumeroSerie && m.numeroSerie !== selectedNumeroSerie) return false;
-                  if (selectedType && m.type?.designation !== selectedType) return false;
-                  if (selectedMarque && m.marque?.nom !== selectedMarque) return false;
-                  if (selectedBeneficiaire && m.beneficiaire?.id !== selectedBeneficiaire.id) return false;
-                  return true;
-                })
-                .map(materiel => (
-                  <option key={materiel.id} value={materiel.id}>
-                    {materiel.numeroInventaire || `Matériel #${materiel.id}`} - 
-                    {materiel.type?.designation ? ` ${materiel.type.designation}` : ''} - 
-                    {materiel.marque?.nom ? ` ${materiel.marque.nom}` : ''}
-                    {materiel.beneficiaire ? ` (${materiel.beneficiaire.nom} ${materiel.beneficiaire.prenom})` : ' (Non attribué)'}
-                  </option>
-                ))}
-            </select>
-            {loadingMateriels && (
-              <div className="absolute right-3 top-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-500"></div>
+              <div className="flex items-center">
+                <FiPackage className="mr-3 text-indigo-500" />
+                <div>
+                  {selectedMateriel ? (
+                    <>
+                      <div className="font-medium text-gray-800">
+                        {selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`}
+                      </div>
+                      <div className="text-sm text-gray-600 flex items-center">
+                        <span className="mr-3">{selectedMateriel.type?.designation || 'N/A'}</span>
+                        <span className="mr-3">{selectedMateriel.marque?.nom || 'N/A'}</span>
+                        {selectedMateriel.numeroSerie && (
+                          <span className="flex items-center">
+                            <FiTag className="mr-1" size={12} />
+                            {selectedMateriel.numeroSerie}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-gray-500">Cliquez pour sélectionner un matériel...</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center">
+                {selectedMateriel && (
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearMaterielSelection();
+                    }}
+                    className="mr-2 text-gray-400 hover:text-gray-600"
+                  >
+                    <FiX size={18} />
+                  </button>
+                )}
+                <FiChevronDown className={`transition-transform ${showMaterielDropdown ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+
+            {showMaterielDropdown && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-96 overflow-y-auto">
+                <div className="p-3 border-b">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={materielSearch}
+                      onChange={(e) => setMaterielSearch(e.target.value)}
+                      placeholder="Rechercher par n° inventaire, série, type, marque, bénéficiaire..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                    <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    Tapez pour rechercher dans tous les champs du matériel
+                  </div>
+                </div>
+                
+                <div className="py-2">
+                  {loadingMateriels ? (
+                    <div className="p-4 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+                      <p className="mt-2 text-sm text-gray-500">Chargement des matériels...</p>
+                    </div>
+                  ) : filteredMateriels.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      {materielSearch.trim() === '' 
+                        ? 'Aucun matériel disponible' 
+                        : `Aucun matériel trouvé pour "${materielSearch}"`}
+                    </div>
+                  ) : (
+                    filteredMateriels.map(materiel => (
+                      <div
+                        key={materiel.id}
+                        onClick={() => {
+                          setSelectedMateriel(materiel);
+                          setShowMaterielDropdown(false);
+                          setMaterielSearch('');
+                        }}
+                        className={`px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                          selectedMateriel?.id === materiel.id ? 'bg-indigo-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-start">
+                          <div className="mr-3 mt-1">
+                            <FiPackage className="text-indigo-500" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <div className="font-medium text-gray-800">
+                                {materiel.numeroInventaire || `Matériel #${materiel.id}`}
+                                {materiel.numeroSerie && (
+                                  <span className="ml-2 text-sm text-gray-600 flex items-center">
+                                    <FiTag className="mr-1" size={12} />
+                                    {materiel.numeroSerie}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`px-2 py-1 text-xs rounded-full ${getEtatColor(materiel.etat)}`}>
+                                {materiel.etat || 'N/A'}
+                              </span>
+                            </div>
+                            
+                            <div className="text-sm text-gray-600 mt-1">
+                              <div className="flex flex-wrap gap-2">
+                                {materiel.type?.designation && (
+                                  <span className="flex items-center">
+                                    <FiPackage className="mr-1" size={12} />
+                                    {materiel.type.designation}
+                                  </span>
+                                )}
+                                {materiel.marque?.nom && (
+                                  <span className="flex items-center">
+                                    <FiBriefcase className="mr-1" size={12} />
+                                    {materiel.marque.nom}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {materiel.beneficiaire && (
+                              <div className="mt-2 text-xs text-gray-500 flex items-center">
+                                <FiUser className="mr-1" size={12} />
+                                <span className="font-medium">
+                                  {materiel.beneficiaire.nom} {materiel.beneficiaire.prenom}
+                                </span>
+                                {materiel.beneficiaire.matricule && (
+                                  <span className="ml-2">
+                                    ({materiel.beneficiaire.matricule})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            
+                            {materiel.caracteristiques && Object.keys(materiel.caracteristiques).length > 0 && (
+                              <div className="mt-2 text-xs text-gray-500 truncate">
+                                {Object.entries(materiel.caracteristiques)
+                                  .slice(0, 2)
+                                  .map(([key, value]) => (
+                                    <span key={key} className="mr-2">
+                                      {key}: {value}
+                                    </span>
+                                  ))}
+                                {Object.keys(materiel.caracteristiques).length > 2 && '...'}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {selectedMateriel?.id === materiel.id && (
+                            <div className="ml-2">
+                              <FiCheck className="text-green-500" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </div>
-          <div className="mt-2 text-sm text-gray-500">
-            {materiels.filter(m => {
-              if (selectedNumeroInventaire && m.numeroInventaire !== selectedNumeroInventaire) return false;
-              if (selectedNumeroSerie && m.numeroSerie !== selectedNumeroSerie) return false;
-              if (selectedType && m.type?.designation !== selectedType) return false;
-              if (selectedMarque && m.marque?.nom !== selectedMarque) return false;
-              if (selectedBeneficiaire && m.beneficiaire?.id !== selectedBeneficiaire.id) return false;
-              return true;
-            }).length} matériel(s) correspondant aux critères
-          </div>
+
+          {selectedMateriel && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <FiCheck className="text-green-500 mr-2" />
+                <div className="flex-1">
+                  <span className="font-medium text-green-800">Matériel sélectionné:</span>
+                  <div className="text-sm text-green-700 grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
+                    <div>
+                      <span className="font-medium">N° Inventaire:</span> {selectedMateriel.numeroInventaire || 'Non défini'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Type:</span> {selectedMateriel.type?.designation || 'N/A'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Marque:</span> {selectedMateriel.marque?.nom || 'N/A'}
+                    </div>
+                    <div>
+                      <span className="font-medium">N° Série:</span> {selectedMateriel.numeroSerie || 'N/A'}
+                    </div>
+                    <div>
+                      <span className="font-medium">État:</span> {selectedMateriel.etat || 'N/A'}
+                    </div>
+                    <div>
+                      <span className="font-medium">Bénéficiaire:</span> 
+                      {selectedMateriel.beneficiaire ? 
+                        ` ${selectedMateriel.beneficiaire.nom} ${selectedMateriel.beneficiaire.prenom}` : 
+                        ' Non attribué'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMaterielDropdown(true)}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  Changer
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Le reste du composant reste inchangé */}
-      {/* ... (Statistiques, Informations du matériel, Filtres de l'historique, Liste de l'historique) ... */}
+      {/* Statistiques */}
+      {selectedMateriel && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+            <div className="flex items-center">
+              <div className="bg-indigo-100 p-2 rounded-lg mr-3">
+                <FiClock className="text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Total des opérations</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.totalOperations}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+            <div className="flex items-center">
+              <div className="bg-green-100 p-2 rounded-lg mr-3">
+                <FiUser className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Attributions initiales</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.attributions}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+            <div className="flex items-center">
+              <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                <FiArrowRight className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Réaffectations</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.reaffectations}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+            <div className="flex items-center">
+              <div className="bg-orange-100 p-2 rounded-lg mr-3">
+                <FiPackage className="text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Libérations</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.liberations}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Informations du matériel sélectionné */}
+      {selectedMateriel && (
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
+          <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
+            <FiPackage className="mr-2 text-indigo-600" />
+            Informations détaillées du matériel
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Numéro d'inventaire</p>
+              <p className="font-medium text-gray-800">
+                {selectedMateriel.numeroInventaire || 'Non défini'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Type</p>
+              <p className="font-medium text-gray-800">
+                {selectedMateriel.type?.designation || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Marque</p>
+              <p className="font-medium text-gray-800">
+                {selectedMateriel.marque?.nom || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Numéro de série</p>
+              <p className="font-medium text-gray-800">
+                {selectedMateriel.numeroSerie || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">État actuel</p>
+              <p className="font-medium text-gray-800">
+                <span className={`px-2 py-1 text-xs rounded-full ${getEtatColor(selectedMateriel.etat)}`}>
+                  {selectedMateriel.etat || 'N/A'}
+                </span>
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Bénéficiaire actuel</p>
+              <p className="font-medium text-gray-800">
+                {selectedMateriel.beneficiaire ? 
+                  `${selectedMateriel.beneficiaire.nom} ${selectedMateriel.beneficiaire.prenom}` : 
+                  'Non attribué'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filtres et recherche */}
+      {selectedMateriel && (
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
+          <h3 className="font-semibold text-gray-800 mb-4 flex items-center">
+            <span className="bg-indigo-100 text-indigo-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">2</span>
+            Filtrer l'historique
+          </h3>
+          
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Rechercher dans l'historique..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={filters.typeOperation}
+                onChange={(e) => setFilters({...filters, typeOperation: e.target.value})}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Tous les types</option>
+                <option value="ATTRIBUTION_INITIALE">Attributions initiales</option>
+                <option value="REAFFECTATION">Réaffectations</option>
+                <option value="LIBERATION">Libérations</option>
+              </select>
+              
+              <input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Date de début"
+              />
+              
+              <input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Date de fin"
+              />
+              
+              <button
+                onClick={() => {
+                  setFilters({
+                    typeOperation: 'all',
+                    dateFrom: '',
+                    dateTo: ''
+                  });
+                  setSearchTerm('');
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center"
+              >
+                <FiFilter className="mr-2" />
+                Réinitialiser
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Liste de l'historique */}
+      {selectedMateriel ? (
+        loadingHistorique ? (
+          <div className="text-center p-8 bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+            <p className="mt-4 text-gray-500">Chargement de l'historique...</p>
+          </div>
+        ) : filteredHistorique.length > 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-gray-800">
+                  Historique ({filteredHistorique.length} opérations)
+                </h3>
+                <span className="text-sm text-gray-500">
+                  {selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`}
+                </span>
+              </div>
+            </div>
+            
+            <div className="divide-y divide-gray-200">
+              {filteredHistorique.map((item, index) => (
+                <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start">
+                    <div className={`p-2 rounded-lg mr-4 ${getOperationColor(item.typeOperation)}`}>
+                      {getOperationIcon(item.typeOperation)}
+                    </div>
+                    
+                    <div className="flex-1">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between">
+                        <div>
+                          <span className={`px-2 py-1 text-xs rounded-full font-medium ${getOperationColor(item.typeOperation)}`}>
+                            {getOperationLabel(item.typeOperation)}
+                          </span>
+                          <h4 className="font-medium text-gray-800 mt-1">
+                            {item.description}
+                          </h4>
+                        </div>
+                        
+                        <div className="flex items-center mt-2 md:mt-0">
+                          <FiCalendar className="text-gray-400 mr-1" size={14} />
+                          <span className="text-sm text-gray-500">
+                            {formatDate(item.dateOperation)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {item.ancienBeneficiaireNom && (
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <p className="text-xs text-gray-500">Ancien bénéficiaire</p>
+                            <p className="font-medium text-gray-800">
+                              {item.ancienBeneficiaireNom}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {item.nouveauBeneficiaireNom && (
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <p className="text-xs text-gray-500">Nouveau bénéficiaire</p>
+                            <p className="font-medium text-gray-800">
+                              {item.nouveauBeneficiaireNom}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {item.notes && (
+                        <div className="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                          <p className="text-sm text-blue-700">{item.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-200">
+            <FiClock className="text-gray-300 text-4xl mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-700 mb-2">Aucun historique trouvé</h3>
+            <p className="text-gray-500">
+              Aucune opération ne correspond à vos critères de recherche
+            </p>
+          </div>
+        )
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-200">
+          <FiPackage className="text-gray-300 text-4xl mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-700 mb-2">Sélectionnez un matériel</h3>
+          <p className="text-gray-500">
+            Veuillez sélectionner un matériel pour afficher son historique
+          </p>
+        </div>
+      )}
     </div>
   );
 };

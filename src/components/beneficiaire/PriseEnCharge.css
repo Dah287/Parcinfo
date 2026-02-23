@@ -401,3 +401,77 @@
     background: white;
   }
 }
+/* Styles pour le sélecteur de marché */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 250px;
+}
+
+.market-icon {
+  font-size: 24px;
+  color: #2563eb;
+}
+
+.market-select {
+  flex: 1;
+  padding: 10px 15px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s;
+  min-width: 300px;
+}
+
+.market-select:hover {
+  border-color: #2563eb;
+}
+
+.market-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .toolbar-left {
+    width: 100%;
+  }
+  
+  .market-select {
+    min-width: auto;
+  }
+  
+  .toolbar-actions {
+    justify-content: center;
+  }
+}

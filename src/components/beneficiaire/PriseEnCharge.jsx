@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiPrinter, FiArrowLeft, FiUser, FiCheckSquare, FiDownload } from 'react-icons/fi';
+import { FiPrinter, FiUser, FiCheckSquare, FiDownload, FiShoppingBag, FiSearch, FiX, FiChevronDown, FiCheck } from 'react-icons/fi';
 import { getPriseEnChargeByAchat, getMaterielsAttribuesParAchatEtBeneficiaire } from '../../services/materialService';
-import { getAchatById } from '../../services/achatService';
+import { getAchatById, getAllAchats } from '../../services/achatService';
 import { toast } from 'react-toastify';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -15,6 +15,7 @@ const PriseEnCharge = () => {
   const [downloading, setDownloading] = useState(false);
   
   const [achat, setAchat] = useState(null);
+  const [achats, setAchats] = useState([]);
   const [priseEnCharge, setPriseEnCharge] = useState([]);
   const [selectedBeneficiaire, setSelectedBeneficiaire] = useState(null);
   const [materielsBeneficiaire, setMaterielsBeneficiaire] = useState([]);
@@ -23,28 +24,73 @@ const PriseEnCharge = () => {
   const [selectedBeneficiaires, setSelectedBeneficiaires] = useState([]);
   const [selectionMode, setSelectionMode] = useState(false);
 
-  // Charger les données
+  // États pour le sélecteur d'achat
+  const [showAchatDropdown, setShowAchatDropdown] = useState(false);
+  const [achatSearch, setAchatSearch] = useState('');
+  const [loadingFilters, setLoadingFilters] = useState(false);
+  const [selectedAchat, setSelectedAchat] = useState(null);
+
+  // Charger la liste des achats pour le sélecteur
   useEffect(() => {
-    const loadData = async () => {
+    const loadAchats = async () => {
+      setLoadingFilters(true);
       try {
-        setLoading(true);
-        
-        const achatRes = await getAchatById(achatId);
-        setAchat(achatRes.data);
-        
-        const priseEnChargeRes = await getPriseEnChargeByAchat(achatId);
-        setPriseEnCharge(priseEnChargeRes.data || []);
-        
+        const response = await getAllAchats();
+        setAchats(response.data || []);
       } catch (error) {
-        console.error('Erreur chargement données:', error);
-        toast.error('Erreur lors du chargement des données');
+        console.error('Erreur chargement achats:', error);
+        toast.error('Erreur lors du chargement des achats');
       } finally {
-        setLoading(false);
+        setLoadingFilters(false);
       }
     };
+    loadAchats();
+  }, []);
 
-    loadData();
-  }, [achatId]);
+  // Charger les données de l'achat sélectionné
+useEffect(() => {
+  const loadData = async () => {
+    try {
+      setLoading(true);
+
+      let currentAchatId = achatId;
+
+      // ✅ Si pas d'achatId dans l'URL → prendre le premier
+      if (!currentAchatId) {
+        const allAchatsRes = await getAllAchats();
+        const allAchats = allAchatsRes.data || [];
+
+        if (allAchats.length === 0) {
+          toast.warning("Aucun achat disponible");
+          setLoading(false);
+          return;
+        }
+
+        const firstAchat = allAchats[0];
+        currentAchatId = firstAchat.id;
+
+        setSelectedAchat(firstAchat);
+        setAchat(firstAchat);
+      } else {
+        const achatRes = await getAchatById(currentAchatId);
+        setAchat(achatRes.data);
+        setSelectedAchat(achatRes.data);
+      }
+
+      const priseEnChargeRes = await getPriseEnChargeByAchat(currentAchatId);
+      setPriseEnCharge(priseEnChargeRes.data || []);
+
+    } catch (error) {
+      console.error("Erreur chargement données:", error);
+      toast.error("Erreur lors du chargement des données");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadData();
+}, [achatId]);
+
 
   // Charger les matériels d'un bénéficiaire spécifique
   useEffect(() => {
@@ -68,6 +114,48 @@ const PriseEnCharge = () => {
 
     loadMaterielsBeneficiaire();
   }, [selectedBeneficiaire, achatId]);
+
+  // Fermer les dropdowns quand on clique ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.dropdown-container')) {
+        setShowAchatDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtrer les achats
+  const filteredAchats = achats.filter(achat => {
+    const searchLower = achatSearch.toLowerCase();
+    return (
+      (achat.reference?.toLowerCase() || '').includes(searchLower) ||
+      (achat.fournisseur?.nom?.toLowerCase() || '').includes(searchLower) ||
+      (achat.numeroBonCommande?.toLowerCase() || '').includes(searchLower) ||
+      (achat.description?.toLowerCase() || '').includes(searchLower)
+    );
+  });
+
+  // Sélectionner un achat
+  const handleAchatSelect = (selectedAchat) => {
+    setSelectedAchat(selectedAchat);
+    setShowAchatDropdown(false);
+    setAchatSearch('');
+    navigate(`/prise-en-charge/${selectedAchat.id}`);
+    // Réinitialiser les états
+    setSelectedBeneficiaire(null);
+    setSelectedBeneficiaires([]);
+    setSelectionMode(false);
+    setShowAllBeneficiaires(true);
+  };
+
+  // Effacer la sélection d'achat
+  const clearAchatFilter = () => {
+    setSelectedAchat(null);
+    setAchatSearch('');
+    navigate('/prise-en-charge');
+  };
 
   // Sélectionner/Désélectionner tous les bénéficiaires
   const toggleSelectAll = () => {
@@ -104,7 +192,7 @@ const PriseEnCharge = () => {
     }, 500);
   };
 
-  // ✅ FONCTION DE TÉLÉCHARGEMENT PDF EN PAYSAGE
+  // FONCTION DE TÉLÉCHARGEMENT PDF EN PAYSAGE
   const handleDownloadPDF = async () => {
     const formsToPrint = getFormsToPrint();
     if (!formsToPrint) return;
@@ -121,15 +209,14 @@ const PriseEnCharge = () => {
       pdfContainer.style.width = '297mm'; // Largeur A4 paysage
       pdfContainer.style.backgroundColor = 'white';
       pdfContainer.style.padding = '10mm';
-      pdfContainer.innerHTML = generatePrintHTML(formsToPrint, true); // true pour le mode paysage
+      pdfContainer.innerHTML = generatePrintHTML(formsToPrint, true);
       document.body.appendChild(pdfContainer);
 
-      // Attendre que le contenu soit rendu
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Créer le PDF en orientation paysage
       const pdf = new jsPDF({
-        orientation: 'landscape', // Orientation paysage
+        orientation: 'landscape',
         unit: 'mm',
         format: 'a4'
       });
@@ -138,20 +225,16 @@ const PriseEnCharge = () => {
       
       for (let i = 0; i < forms.length; i++) {
         const form = forms[i];
+        form.style.width = '277mm';
         
-        // Ajuster la largeur pour le paysage
-        form.style.width = '277mm'; // Légèrement moins que 297mm pour les marges
-        
-        // Convertir le formulaire en canvas
         const canvas = await html2canvas(form, {
           scale: 2,
           backgroundColor: '#ffffff',
           logging: false,
           allowTaint: false,
           useCORS: true,
-          windowWidth: 1200, // Largeur virtuelle pour le rendu
+          windowWidth: 1200,
           onclone: (clonedDoc) => {
-            // Ajuster les styles dans le clone
             const clonedForms = clonedDoc.querySelectorAll('.prise-en-charge-form');
             clonedForms.forEach(f => {
               f.style.width = '277mm';
@@ -161,16 +244,11 @@ const PriseEnCharge = () => {
         });
 
         const imgData = canvas.toDataURL('image/png');
-        
-        // Dimensions pour le paysage (A4 paysage: 297mm x 210mm)
-        const imgWidth = 277; // mm (avec marge de 10mm de chaque côté)
+        const imgWidth = 277;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-        // Centrer l'image sur la page
         const xOffset = (297 - imgWidth) / 2;
         const yOffset = (210 - imgHeight) / 2;
 
-        // Ajouter une nouvelle page si ce n'est pas la première
         if (i > 0) {
           pdf.addPage();
         }
@@ -178,7 +256,6 @@ const PriseEnCharge = () => {
         pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight, undefined, 'FAST');
       }
 
-      // Télécharger le PDF
       const beneficiaireName = selectedBeneficiaire 
         ? `${selectedBeneficiaire.nom}_${selectedBeneficiaire.prenom}`
         : selectedBeneficiaires.length > 0 
@@ -187,7 +264,6 @@ const PriseEnCharge = () => {
       
       pdf.save(`prise_en_charge_${beneficiaireName}_${new Date().toISOString().split('T')[0]}.pdf`);
 
-      // Nettoyer
       document.body.removeChild(pdfContainer);
       toast.success('PDF téléchargé avec succès!');
     } catch (error) {
@@ -217,7 +293,7 @@ const PriseEnCharge = () => {
     }
   };
 
-  // ✅ Générer le HTML pour l'impression/PDF (avec option paysage)
+  // Générer le HTML pour l'impression/PDF
   const generatePrintHTML = (formsToPrint, isLandscape = false) => {
     return `
       <!DOCTYPE html>
@@ -242,7 +318,7 @@ const PriseEnCharge = () => {
     `;
   };
 
-  // ✅ Générer le HTML pour un formulaire (avec adaptation paysage)
+  // Générer le HTML pour un formulaire
   const generateFormHTML = (achat, beneficiaire, materiels, numero, isLandscape = false) => {
     const totalTTC = calculateTotalTTC(materiels);
     const today = new Date().toLocaleDateString('fr-FR', {
@@ -271,12 +347,10 @@ const PriseEnCharge = () => {
         }).join('')
       : '<tr><td colspan="7" class="text-center">Aucun matériel trouvé</td></tr>';
 
-    // Classes supplémentaires pour le mode paysage
     const landscapeClass = isLandscape ? 'landscape-mode' : '';
 
     return `
       <div class="prise-en-charge-form ${landscapeClass}">
-        <!-- En-tête -->
         <table class="form-header">
           <thead>
             <tr>
@@ -292,7 +366,6 @@ const PriseEnCharge = () => {
           </tbody>
         </table>
 
-        <!-- Origine -->
         <table class="form-section">
           <tbody>
             <tr>
@@ -315,7 +388,6 @@ const PriseEnCharge = () => {
           </tbody>
         </table>
 
-        <!-- Détenteur -->
         <table class="form-section">
           <tbody>
             <tr>
@@ -346,7 +418,6 @@ const PriseEnCharge = () => {
           </tbody>
         </table>
 
-        <!-- Tableau des matériels -->
         <table class="form-table">
           <thead>
             <tr>
@@ -368,7 +439,6 @@ const PriseEnCharge = () => {
           </tbody>
         </table>
 
-        <!-- Pied de page -->
         <table class="form-footer">
           <tbody>
             <tr>
@@ -398,7 +468,7 @@ const PriseEnCharge = () => {
     `;
   };
 
-  // ✅ Styles pour l'impression/PDF (avec adaptation paysage)
+  // Styles pour l'impression/PDF
   const getPrintStyles = (isLandscape = false) => `
     * {
       margin: 0;
@@ -564,12 +634,129 @@ const PriseEnCharge = () => {
 
   return (
     <div className="prise-en-charge-container">
-      {/* Barre d'outils */}
+      {/* Barre d'outils avec sélecteur de marché stylisé */}
       <div className="toolbar">
-        <button className="btn btn-secondary" onClick={() => navigate(-1)}>
-          <FiArrowLeft className="mr-2" /> Retour
-        </button>
-        
+        <div className="space-y-3" style={{ width: '100%' }}>
+          <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+            <span className="bg-blue-100 text-blue-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">1</span>
+            Sélectionnez un achat
+          </h3>
+          
+          <div className="relative dropdown-container">
+            <button
+              onClick={() => {
+                setShowAchatDropdown(!showAchatDropdown);
+              }}
+              className={`w-full p-4 border rounded-xl text-left flex justify-between items-center transition-all ${
+                selectedAchat 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <div className="flex items-center">
+                <FiShoppingBag className="mr-3 text-blue-500" />
+                <div>
+                  {selectedAchat ? (
+                    <>
+                      <div className="font-medium text-gray-800">{selectedAchat.reference || `Achat #${selectedAchat.id}`}</div>
+                      <div className="text-sm text-gray-600">
+                        {selectedAchat.fournisseur?.nom || 'N/A'} • 
+                        {selectedAchat.dateAchat ? ` ${new Date(selectedAchat.dateAchat).toLocaleDateString('fr-FR')}` : ''}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-gray-500">Cliquez pour sélectionner un achat...</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center">
+                {selectedAchat && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearAchatFilter();
+                    }}
+                    className="mr-2 text-gray-400 hover:text-gray-600"
+                  >
+                    <FiX size={18} />
+                  </button>
+                )}
+                <FiChevronDown className={`transition-transform ${showAchatDropdown ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+
+            {showAchatDropdown && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-80 overflow-y-auto">
+                <div className="p-3 border-b">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={achatSearch}
+                      onChange={(e) => setAchatSearch(e.target.value)}
+                      placeholder="Rechercher une référence, fournisseur..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+                  </div>
+                </div>
+                
+                <div className="py-2">
+                  {loadingFilters ? (
+                    <div className="p-4 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                      <p className="mt-2 text-sm text-gray-500">Chargement des achats...</p>
+                    </div>
+                  ) : filteredAchats.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      Aucun achat trouvé
+                    </div>
+                  ) : (
+                    filteredAchats.map(achat => (
+                      <div
+                        key={achat.id}
+                        onClick={() => handleAchatSelect(achat)}
+                        className={`px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                          selectedAchat?.id === achat.id ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <div className="font-medium text-gray-800">
+                          {achat.reference || `Achat #${achat.id}`}
+                          {achat.numeroBonCommande && ` (BC: ${achat.numeroBonCommande})`}
+                        </div>
+                        <div className="text-sm text-gray-600 flex justify-between mt-1">
+                          <span>{achat.fournisseur?.nom || 'N/A'}</span>
+                          <span>
+                            {achat.dateAchat ? new Date(achat.dateAchat).toLocaleDateString('fr-FR') : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {achat.description ? achat.description.substring(0, 50) + (achat.description.length > 50 ? '...' : '') : 'Pas de description'}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {selectedAchat && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <FiCheck className="text-green-500 mr-2" />
+                <div>
+                  <span className="font-medium text-green-800">Achat sélectionné:</span>
+                  <div className="text-sm text-green-700">
+                    {selectedAchat.reference || `Achat #${selectedAchat.id}`} • 
+                    {selectedAchat.fournisseur?.nom ? ` ${selectedAchat.fournisseur.nom} •` : ''}
+                    {selectedAchat.dateAchat ? ` ${new Date(selectedAchat.dateAchat).toLocaleDateString('fr-FR')}` : ''}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="toolbar-actions">
           <label className="toggle-label">
             <input
@@ -589,7 +776,6 @@ const PriseEnCharge = () => {
             <FiPrinter className="mr-2" /> Imprimer
           </button>
 
-          {/* BOUTON PDF EN PAYSAGE */}
           <button 
             className="btn btn-danger" 
             onClick={handleDownloadPDF}
@@ -636,7 +822,7 @@ const PriseEnCharge = () => {
         </div>
       </div>
 
-      {/* Contenu principal (affichage normal) */}
+      {/* Contenu principal */}
       <div className="content">
         {showAllBeneficiaires ? (
           priseEnCharge.map((dto, index) => {

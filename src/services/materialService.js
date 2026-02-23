@@ -68,3 +68,48 @@ export const getMaterielsAttribuesParAchatEtBeneficiaire = (achatId, beneficiair
 export const getPriseEnChargeByAchat = (achatId) => {
   return axios.get(`${API_BASE_URL}/achat/${achatId}/prise-en-charge`);
 };
+
+// ===============================
+// 🔹 NOUVEAUX ENDPOINTS POUR PRÉPARATION
+// ===============================
+
+/**
+ * ✅ Préparer les matériels (assigner N° série et inventaire)
+ * @param {number} prixId - ID du prix
+ * @param {Array} preparationData - Liste des objets {numeroSerie, numeroInventaire, observations}
+ * @returns {Promise}
+ */
+export const preparerMateriels = (prixId, preparationData) => {
+  if (!prixId) {
+    return Promise.reject(new Error('prixId requis'));
+  }
+  
+  console.log(`Préparation de ${preparationData.length} matériels pour le prix ${prixId}`);
+  
+  return axios.post(`${API_BASE_URL}/preparation/${prixId}`, preparationData)
+    .then(response => {
+      console.log('Matériels préparés avec succès:', response.data);
+      return response;
+    })
+    .catch(error => {
+      console.error('Erreur lors de la préparation:', error);
+      throw error;
+    });
+};
+
+/**
+ * ✅ Récupérer les matériels par ID de prix
+ * @param {number} prixId - ID du prix
+ * @returns {Promise}
+ */
+export const getMaterielsByPrix = (prixId) => {
+  if (!prixId) {
+    return Promise.reject(new Error('prixId requis'));
+  }
+  
+  return axios.get(`${API_BASE_URL}/prix/${prixId}`)
+    .then(response => {
+      console.log('Matériels pour prix', prixId, ':', response.data);
+      return response;
+    });
+};

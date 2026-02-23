@@ -38,3 +38,18 @@ export const searchBeneficiaires = (keyword) => {
 export const getBeneficiairesByDepartement = (departement) => {
   return axios.get(`${API_BASE_URL}/departement/${departement}`);
 };
+
+// ===============================
+// 🔹 BENEFICIAIRES - Gestion complète
+// ===============================
+
+
+
+export const checkBeneficiaireExists = async (id) => {
+  try {
+    const response = await getBeneficiaireById(id);
+    return response.status === 200;
+  } catch (error) {
+    return false;
+  }
+};

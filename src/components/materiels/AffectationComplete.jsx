@@ -241,7 +241,7 @@ const AffectationComplete = () => {
             <FiShoppingCart className="text-indigo-600 text-2xl" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Affectation Complète CAD</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Affectation Complète</h2>
             <p className="text-gray-600">Attribuer un matériel de chaque prix d'un achat à un bénéficiaire</p>
           </div>
         </div>
