@@ -154,6 +154,6 @@ public class HistoriqueAttributionService {
     }
 
     private String getBeneficiaireDepartement(Beneficiaire b) {
-        return (b != null) ? b.getDepartement() : null;
+        return (b != null) ? b.getDepartmentNom() : null;
     }
 }

@@ -1,6 +1,5 @@
 package com.example.parcinfo.model;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -30,43 +29,57 @@ public class Beneficiaire {
     @Column(nullable = false)
     private String prenom;
 
+    @NotBlank(message = "Le matricule est obligatoire")
+    @Column(nullable = false, unique = true)
+    private String matricule;
+
     @Column
     private String telephone;
 
     @Column
     private String email;
 
-    @NotBlank(message = "Le département est obligatoire")
-    @Column(nullable = false)
-    private String departement;
-
     @Column
     private String fonction;
+
+    // Relations ManyToOne vers les entités indépendantes
+    @ManyToOne
+    @JoinColumn(name = "bureau_id")
+    private Bureau bureau;
+
+    @ManyToOne
+    @JoinColumn(name = "department_id")
+    private Department department;
+
+    @ManyToOne
+    @JoinColumn(name = "service_id")
+    private Service service;
 
     @OneToMany(mappedBy = "beneficiaire", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Material> materiels = new ArrayList<>();
 
-//    public String getNomComplet() {
-//        return nom + " " + prenom;
-//    }
-
-    // ✅ Champs calculés pour le frontend
     @Transient
     @JsonProperty("nomComplet")
     public String getNomComplet() {
         return this.nom + " " + this.prenom;
     }
 
-//    @Transient
-//    @JsonProperty("departementNom")
-//    public String getDepartementNom() {
-//        return this.departement != null ? this. : null;
-//    }
-//
-//    @Transient
-//    @JsonProperty("serviceNom")
-//    public String getServiceNom() {
-//        return this.service != null ? this.service.getNom() : null;
-//    }
+    @Transient
+    @JsonProperty("bureauNom")
+    public String getBureauNom() {
+        return this.bureau != null ? this.bureau.getName() : null;
+    }
+
+    @Transient
+    @JsonProperty("departmentNom")
+    public String getDepartmentNom() {
+        return this.department != null ? this.department.getName() : null;
+    }
+
+    @Transient
+    @JsonProperty("serviceNom")
+    public String getServiceNom() {
+        return this.service != null ? this.service.getName() : null;
+    }
 }

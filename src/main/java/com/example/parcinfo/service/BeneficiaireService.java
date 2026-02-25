@@ -2,20 +2,35 @@ package com.example.parcinfo.service;
 
 import com.example.parcinfo.dto.BeneficiaireDTO;
 import com.example.parcinfo.model.Beneficiaire;
+import com.example.parcinfo.model.Bureau;
+import com.example.parcinfo.model.Department;
+// Import de l'entité Service avec son package complet
+import com.example.parcinfo.model.Service;  // Votre entité
 import com.example.parcinfo.repository.BeneficiaireRepository;
+import com.example.parcinfo.repository.BureauRepository;
+import com.example.parcinfo.repository.DepartmentRepository;
+import com.example.parcinfo.repository.ServiceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
-@Service
+@org.springframework.stereotype.Service  // Annotation Spring
 @RequiredArgsConstructor
 public class BeneficiaireService {
 
     @Autowired
-    BeneficiaireRepository beneficiaireRepository;
+    private BeneficiaireRepository beneficiaireRepository;
+
+    @Autowired
+    private BureauRepository bureauRepository;
+
+    @Autowired
+    private DepartmentRepository departmentRepository;
+
+    @Autowired
+    private ServiceRepository serviceRepository;  // Repository de l'entité Service
 
     @Transactional(readOnly = true)
     public List<Beneficiaire> getAllBeneficiaires() {
@@ -28,23 +43,54 @@ public class BeneficiaireService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<Beneficiaire> getBeneficiaireByMatricule(String matricule) {
+        return beneficiaireRepository.findByMatricule(matricule);
+    }
+
+    @Transactional(readOnly = true)
     public List<Beneficiaire> searchBeneficiaires(String keyword) {
         return beneficiaireRepository.searchByKeyword(keyword);
     }
 
     @Transactional(readOnly = true)
-    public List<Beneficiaire> getBeneficiairesByDepartement(String departement) {
-        return beneficiaireRepository.findByDepartement(departement);
+    public List<Beneficiaire> getBeneficiairesByBureau(Long bureauId) {
+        return beneficiaireRepository.findByBureauId(bureauId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Beneficiaire> getBeneficiairesByDepartment(Long departmentId) {
+        return beneficiaireRepository.findByDepartmentId(departmentId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Beneficiaire> getBeneficiairesByService(Long serviceId) {
+        return beneficiaireRepository.findByServiceId(serviceId);
     }
 
     @Transactional
     public Beneficiaire createBeneficiaire(BeneficiaireDTO dto) {
+        // Vérifier si un bénéficiaire avec le même matricule existe déjà
+        if (beneficiaireRepository.existsByMatricule(dto.getMatricule())) {
+            throw new RuntimeException("Un bénéficiaire avec ce matricule existe déjà");
+        }
+
         // Vérifier si un bénéficiaire avec le même nom/prénom existe déjà
         if (beneficiaireRepository.existsByNomAndPrenom(dto.getNom(), dto.getPrenom())) {
             throw new RuntimeException("Un bénéficiaire avec ce nom et prénom existe déjà");
         }
 
-        Beneficiaire beneficiaire = dto.toEntity();
+        // Récupérer les entités associées
+        Bureau bureau = bureauRepository.findById(dto.getBureauId())
+                .orElseThrow(() -> new RuntimeException("Bureau non trouvé"));
+
+        Department department = departmentRepository.findById(dto.getDepartmentId())
+                .orElseThrow(() -> new RuntimeException("Département non trouvé"));
+
+        // Utilisation de l'entité Service
+        com.example.parcinfo.model.Service service = serviceRepository.findById(dto.getServiceId())
+                .orElseThrow(() -> new RuntimeException("Service non trouvé"));
+
+        Beneficiaire beneficiaire = dto.toEntity(bureau, department, service);
         return beneficiaireRepository.save(beneficiaire);
     }
 
@@ -53,12 +99,32 @@ public class BeneficiaireService {
         Beneficiaire beneficiaire = beneficiaireRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Bénéficiaire non trouvé"));
 
+        // Vérifier si le nouveau matricule n'est pas déjà utilisé par un autre bénéficiaire
+        if (!beneficiaire.getMatricule().equals(dto.getMatricule()) &&
+                beneficiaireRepository.existsByMatricule(dto.getMatricule())) {
+            throw new RuntimeException("Un autre bénéficiaire avec ce matricule existe déjà");
+        }
+
+        // Récupérer les entités associées
+        Bureau bureau = bureauRepository.findById(dto.getBureauId())
+                .orElseThrow(() -> new RuntimeException("Bureau non trouvé"));
+
+        Department department = departmentRepository.findById(dto.getDepartmentId())
+                .orElseThrow(() -> new RuntimeException("Département non trouvé"));
+
+        // Utilisation de l'entité Service avec nom qualifié
+        com.example.parcinfo.model.Service service = serviceRepository.findById(dto.getServiceId())
+                .orElseThrow(() -> new RuntimeException("Service non trouvé"));
+
         beneficiaire.setNom(dto.getNom());
         beneficiaire.setPrenom(dto.getPrenom());
+        beneficiaire.setMatricule(dto.getMatricule());
         beneficiaire.setTelephone(dto.getTelephone());
         beneficiaire.setEmail(dto.getEmail());
-        beneficiaire.setDepartement(dto.getDepartement());
         beneficiaire.setFonction(dto.getFonction());
+        beneficiaire.setBureau(bureau);
+        beneficiaire.setDepartment(department);
+        beneficiaire.setService(service);
 
         return beneficiaireRepository.save(beneficiaire);
     }
@@ -74,5 +140,10 @@ public class BeneficiaireService {
     @Transactional(readOnly = true)
     public boolean existsById(Long id) {
         return beneficiaireRepository.existsById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean existsByMatricule(String matricule) {
+        return beneficiaireRepository.existsByMatricule(matricule);
     }
 }

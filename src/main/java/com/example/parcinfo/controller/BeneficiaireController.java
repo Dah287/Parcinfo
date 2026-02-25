@@ -17,7 +17,7 @@ import java.util.List;
 public class BeneficiaireController {
 
     @Autowired
-    BeneficiaireService beneficiaireService;
+    private BeneficiaireService beneficiaireService;
 
     @GetMapping
     public ResponseEntity<List<Beneficiaire>> getAllBeneficiaires() {
@@ -31,14 +31,31 @@ public class BeneficiaireController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/matricule/{matricule}")
+    public ResponseEntity<Beneficiaire> getBeneficiaireByMatricule(@PathVariable String matricule) {
+        return beneficiaireService.getBeneficiaireByMatricule(matricule)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/search")
     public ResponseEntity<List<Beneficiaire>> searchBeneficiaires(@RequestParam String keyword) {
         return ResponseEntity.ok(beneficiaireService.searchBeneficiaires(keyword));
     }
 
-    @GetMapping("/departement/{departement}")
-    public ResponseEntity<List<Beneficiaire>> getBeneficiairesByDepartement(@PathVariable String departement) {
-        return ResponseEntity.ok(beneficiaireService.getBeneficiairesByDepartement(departement));
+    @GetMapping("/bureau/{bureauId}")
+    public ResponseEntity<List<Beneficiaire>> getBeneficiairesByBureau(@PathVariable Long bureauId) {
+        return ResponseEntity.ok(beneficiaireService.getBeneficiairesByBureau(bureauId));
+    }
+
+    @GetMapping("/department/{departmentId}")
+    public ResponseEntity<List<Beneficiaire>> getBeneficiairesByDepartment(@PathVariable Long departmentId) {
+        return ResponseEntity.ok(beneficiaireService.getBeneficiairesByDepartment(departmentId));
+    }
+
+    @GetMapping("/service/{serviceId}")
+    public ResponseEntity<List<Beneficiaire>> getBeneficiairesByService(@PathVariable Long serviceId) {
+        return ResponseEntity.ok(beneficiaireService.getBeneficiairesByService(serviceId));
     }
 
     @PostMapping
@@ -62,5 +79,10 @@ public class BeneficiaireController {
         }
         beneficiaireService.deleteBeneficiaire(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/exists/matricule/{matricule}")
+    public ResponseEntity<Boolean> checkMatriculeExists(@PathVariable String matricule) {
+        return ResponseEntity.ok(beneficiaireService.existsByMatricule(matricule));
     }
 }

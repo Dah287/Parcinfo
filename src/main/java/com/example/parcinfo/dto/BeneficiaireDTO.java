@@ -1,7 +1,6 @@
 package com.example.parcinfo.dto;
 
-
-import com.example.parcinfo.model.Beneficiaire;
+import com.example.parcinfo.model.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -19,22 +18,33 @@ public class BeneficiaireDTO {
     @NotBlank(message = "Le prénom est obligatoire")
     private String prenom;
 
+    @NotBlank(message = "Le matricule est obligatoire")
+    private String matricule;
+
     private String telephone;
     private String email;
-
-    @NotBlank(message = "Le département est obligatoire")
-    private String departement;
-
     private String fonction;
 
-    public Beneficiaire toEntity() {
+    @NotNull(message = "Le bureau est obligatoire")
+    private Long bureauId;
+
+    @NotNull(message = "Le département est obligatoire")
+    private Long departmentId;
+
+    @NotNull(message = "Le service est obligatoire")
+    private Long serviceId;
+
+    public Beneficiaire toEntity(Bureau bureau, Department department, Service service) {
         return Beneficiaire.builder()
                 .nom(nom)
                 .prenom(prenom)
+                .matricule(matricule)
                 .telephone(telephone)
                 .email(email)
-                .departement(departement)
                 .fonction(fonction)
+                .bureau(bureau)
+                .department(department)
+                .service(service)
                 .build();
     }
 }
