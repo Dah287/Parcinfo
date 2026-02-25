@@ -1,9 +1,6 @@
 package com.example.parcinfo.controller;
 
-import com.example.parcinfo.dto.AffectationCompleteDTO;
-import com.example.parcinfo.dto.AttributionMaterialDTO;
-import com.example.parcinfo.dto.MaterialDTO;
-import com.example.parcinfo.dto.PriseEnChargeDTO;
+import com.example.parcinfo.dto.*;
 import com.example.parcinfo.model.Beneficiaire;
 import com.example.parcinfo.model.Material;
 import com.example.parcinfo.repository.MaterialRepository;
@@ -12,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -307,5 +306,28 @@ public class MaterialController {
                     "message", e.getMessage()
             ));
         }
+    }
+
+    /**
+     * ✅ NOUVEL ENDPOINT : Préparer les matériels (assigner N° série et inventaire)
+     * POST /api/materiels/preparation/{prixId}
+     */
+    @PostMapping("/preparation/{prixId}")
+    public ResponseEntity<List<Material>> preparerMateriels(
+            @PathVariable Long prixId,
+            @RequestBody List<MaterielPreparationDTO> preparationData) {
+
+        List<Material> materielsPrepares = materialService.preparerMateriels(prixId, preparationData);
+        return ResponseEntity.ok(materielsPrepares);
+    }
+
+    /**
+     * ✅ NOUVEL ENDPOINT : Récupérer les matériels par prix
+     * GET /api/materiels/prix/{prixId}
+     */
+    @GetMapping("/prix/{prixId}")
+    public ResponseEntity<List<Material>> getMaterielsByPrix(@PathVariable Long prixId) {
+        List<Material> materiels = materialService.getMaterielsByPrix(prixId);
+        return ResponseEntity.ok(materiels);
     }
 }

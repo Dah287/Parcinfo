@@ -2,21 +2,35 @@ package com.example.parcinfo.service;
 
 import com.example.parcinfo.dto.AffectationCompleteDTO;
 import com.example.parcinfo.dto.AttributionMaterialDTO;
+import com.example.parcinfo.dto.MaterielPreparationDTO;
 import com.example.parcinfo.model.Material;
 import com.example.parcinfo.model.Beneficiaire;
+import com.example.parcinfo.model.Prix;
 import com.example.parcinfo.model.TypeOperation;
 import com.example.parcinfo.repository.MaterialRepository;
 import com.example.parcinfo.repository.BeneficiaireRepository;
+import com.example.parcinfo.repository.PrixRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +42,9 @@ public class MaterialService {
     BeneficiaireRepository beneficiaireRepository;
     @Autowired
     HistoriqueAttributionService historiqueService;
+
+    @Autowired
+    PrixRepository prixRepository;
     @Transactional(readOnly = true)
     public List<Material> getAllMateriels() {
         return materialRepository.findAll();
@@ -282,5 +299,91 @@ public class MaterialService {
         return materiels.stream()
                 .filter(m -> m.getBeneficiaire() != null)
                 .collect(Collectors.groupingBy(Material::getBeneficiaire));
+    }
+
+    /**
+     * Préparer les matériels pour un prix donné
+     */
+    @Transactional
+    public List<Material> preparerMateriels(Long prixId, List<MaterielPreparationDTO> preparationData) {
+
+        // Récupérer le prix
+        Prix prix = prixRepository.findById(prixId)
+                .orElseThrow(() -> new RuntimeException("Prix non trouvé avec l'ID: " + prixId));
+
+        // Vérifier que le nombre de matériels correspond à la quantité du prix
+        if (preparationData.size() != prix.getQuantite()) {
+            throw new RuntimeException(
+                    String.format("Le nombre de matériels (%d) ne correspond pas à la quantité du prix (%d)",
+                            preparationData.size(), prix.getQuantite())
+            );
+        }
+
+        List<Material> materielsPrepares = new ArrayList<>();
+
+        // Récupérer les matériels existants pour ce prix
+        List<Material> materielsExistants = materialRepository.findByPrixId(prixId);
+
+        // Vérifier qu'il y a assez de matériels disponibles
+        if (materielsExistants.size() < preparationData.size()) {
+            // Si pas assez, on peut en créer automatiquement via MaterialGenerationService
+            // Ou on lance une erreur selon votre logique métier
+            throw new RuntimeException(
+                    String.format("Pas assez de matériels disponibles. Existants: %d, Demandés: %d",
+                            materielsExistants.size(), preparationData.size())
+            );
+        }
+
+        // Parcourir les données de préparation et mettre à jour les matériels
+        for (int i = 0; i < preparationData.size(); i++) {
+            MaterielPreparationDTO dto = preparationData.get(i);
+
+            // Récupérer le matériel correspondant (soit par index, soit par logique métier)
+            // Ici on suppose qu'on utilise les matériels dans l'ordre
+            Material materiel = materielsExistants.get(i);
+
+            // Vérifier l'unicité du numéro de série si fourni
+            if (dto.getNumeroSerie() != null && !dto.getNumeroSerie().isEmpty()) {
+                if (materialRepository.existsByNumeroSerie(dto.getNumeroSerie())) {
+                    throw new RuntimeException(
+                            "Le numéro de série '" + dto.getNumeroSerie() + "' est déjà utilisé"
+                    );
+                }
+                materiel.setNumeroSerie(dto.getNumeroSerie());
+            }
+
+            // Vérifier l'unicité du numéro d'inventaire si fourni
+            if (dto.getNumeroInventaire() != null && !dto.getNumeroInventaire().isEmpty()) {
+                if (materialRepository.existsByNumeroInventaire(dto.getNumeroInventaire())) {
+                    throw new RuntimeException(
+                            "Le numéro d'inventaire '" + dto.getNumeroInventaire() + "' est déjà utilisé"
+                    );
+                }
+                materiel.setNumeroInventaire(dto.getNumeroInventaire());
+            }
+
+            // Mettre à jour les observations
+            if (dto.getObservations() != null) {
+                materiel.setObservations(dto.getObservations());
+            }
+
+            // Si au moins un numéro a été assigné, on considère le matériel comme préparé
+            if (dto.getNumeroSerie() != null || dto.getNumeroInventaire() != null) {
+                // Optionnel: changer l'état si nécessaire
+                // materiel.setEtat(Material.EtatMateriel.PREPARE);
+            }
+
+            Material saved = materialRepository.save(materiel);
+            materielsPrepares.add(saved);
+        }
+
+        return materielsPrepares;
+    }
+
+    /**
+     * Récupérer les matériels par ID de prix
+     */
+    public List<Material> getMaterielsByPrix(Long prixId) {
+        return materialRepository.findByPrixId(prixId);
     }
 }

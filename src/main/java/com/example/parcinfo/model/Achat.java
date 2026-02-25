@@ -38,10 +38,10 @@ public class Achat {
     @Column(nullable = false)
     private TypeAchat type;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "fournisseur_id", nullable = false)
-    @JsonIgnore // ✅ Pour JSON
     private Fournisseur fournisseur;
+
 
     @OneToMany(mappedBy = "achat", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore

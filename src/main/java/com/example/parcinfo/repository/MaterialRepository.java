@@ -90,4 +90,5 @@ public interface MaterialRepository extends JpaRepository<Material, Long> {
             @Param("achatId") Long achatId,
             Material.EtatMateriel etat
     );
+
 }
