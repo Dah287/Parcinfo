@@ -9,10 +9,6 @@ import html2canvas from 'html2canvas';
 import QRCode from 'qrcode';
 import './PriseEnCharge.css';
 
-// Importer les logos (ajustez les chemins selon votre structure)
-import logoLeft from '../../assets/images/logo-left.png'; // Logo de gauche
-import logoRight from '../../assets/images/logo-right.png'; // Logo de droite
-
 const PriseEnCharge = () => {
   const { achatId } = useParams();
   const navigate = useNavigate();
@@ -389,16 +385,6 @@ const PriseEnCharge = () => {
 
     return `
       <div class="prise-en-charge-form ${landscapeClass}">
-        <!-- NOUVELLE LIGNE AVEC LES LOGOS -->
-        <div class="logo-row">
-          <div class="logo-left">
-            <img src="${logoLeft}" alt="Logo gauche" class="logo-image" />
-          </div>
-          <div class="logo-right">
-            <img src="${logoRight}" alt="Logo droit" class="logo-image" />
-          </div>
-        </div>
-
         <table class="form-header">
           <thead>
             <tr>
@@ -492,12 +478,15 @@ const PriseEnCharge = () => {
                   ${qrCodeUrl ? (
                     `<div class="qr-code-container">
                       <img src="${qrCodeUrl}" alt="QR Code" class="qr-code" />
-                    
+                      <div class="signature-text">Signature</div>
                     </div>`
                   ) : (
                     `<>
-                        <br />
-                      
+
+                      <br />
+                      <br />
+                      <br />
+                      Signature
                     </>`
                   )}
                 </div>
@@ -539,36 +528,6 @@ const PriseEnCharge = () => {
       page-break-after: always;
       background: white;
       ${isLandscape ? 'width: 277mm; margin: 0 auto;' : ''}
-    }
-    
-    /* NOUVEAUX STYLES POUR LA LIGNE DES LOGOS */
-    .logo-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 15px;
-      border-bottom: 1px solid #ccc;
-      background-color: #f9f9f9;
-    }
-    
-    .logo-left, .logo-right {
-      flex: 1;
-      display: flex;
-      align-items: center;
-    }
-    
-    .logo-left {
-      justify-content: flex-start;
-    }
-    
-    .logo-right {
-      justify-content: flex-end;
-    }
-    
-    .logo-image {
-      max-height: 60px;
-      max-width: 150px;
-      object-fit: contain;
     }
     
     .landscape-mode {
@@ -720,12 +679,6 @@ const PriseEnCharge = () => {
       .qr-code {
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
-      }
-      
-      .logo-row {
-        background-color: #f9f9f9;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
       }
     }
   `;
@@ -1060,16 +1013,6 @@ const PriseEnChargeForm = ({
 
   return (
     <div className="prise-en-charge-form">
-      {/* NOUVELLE LIGNE AVEC LES LOGOS */}
-      <div className="logo-row">
-        <div className="logo-left">
-          <img src={logoLeft} alt="Logo gauche" className="logo-image" />
-        </div>
-        <div className="logo-right">
-          <img src={logoRight} alt="Logo droit" className="logo-image" />
-        </div>
-      </div>
-
       <table className="form-header">
         <thead>
           <tr>
@@ -1110,9 +1053,11 @@ const PriseEnChargeForm = ({
         <tbody>
           <tr>
             <td rowSpan="2" className="section-label detenteur-cell" style={{ width: '25%' }}>
-              <div>
-                <strong>LE DETENTEUR</strong>
-              </div>
+
+                <div>
+                  <strong>LE DETENTEUR</strong>
+                </div>
+        
               <div className="detenteur-info">
                 Je soussigné : <strong>{beneficiaire?.nom?.toUpperCase()} {beneficiaire?.prenom?.toUpperCase()}</strong><br />
                 Avoir pris en charge les articles ci-dessous
@@ -1187,12 +1132,15 @@ const PriseEnChargeForm = ({
                 {qrCodeUrl ? (
                   <div className="qr-code-container">
                     <img src={qrCodeUrl} alt="QR Code" className="qr-code" />
-                  
+                    
                   </div>
                 ) : (
                   <>
+                    
                     <br />
-             
+                    <br />
+                    <br />
+               
                   </>
                 )}
               </div>

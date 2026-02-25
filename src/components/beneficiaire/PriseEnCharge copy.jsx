@@ -6,12 +6,7 @@ import { getAchatById, getAllAchats } from '../../services/achatService';
 import { toast } from 'react-toastify';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import QRCode from 'qrcode';
 import './PriseEnCharge.css';
-
-// Importer les logos (ajustez les chemins selon votre structure)
-import logoLeft from '../../assets/images/logo-left.png'; // Logo de gauche
-import logoRight from '../../assets/images/logo-right.png'; // Logo de droite
 
 const PriseEnCharge = () => {
   const { achatId } = useParams();
@@ -28,7 +23,6 @@ const PriseEnCharge = () => {
   const [showAllBeneficiaires, setShowAllBeneficiaires] = useState(true);
   const [selectedBeneficiaires, setSelectedBeneficiaires] = useState([]);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [qrCodes, setQrCodes] = useState({});
 
   // États pour le sélecteur d'achat
   const [showAchatDropdown, setShowAchatDropdown] = useState(false);
@@ -54,80 +48,49 @@ const PriseEnCharge = () => {
   }, []);
 
   // Charger les données de l'achat sélectionné
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
+useEffect(() => {
+  const loadData = async () => {
+    try {
+      setLoading(true);
 
-        let currentAchatId = achatId;
+      let currentAchatId = achatId;
 
-        if (!currentAchatId) {
-          const allAchatsRes = await getAllAchats();
-          const allAchats = allAchatsRes.data || [];
+      // ✅ Si pas d'achatId dans l'URL → prendre le premier
+      if (!currentAchatId) {
+        const allAchatsRes = await getAllAchats();
+        const allAchats = allAchatsRes.data || [];
 
-          if (allAchats.length === 0) {
-            toast.warning("Aucun achat disponible");
-            setLoading(false);
-            return;
-          }
-
-          const firstAchat = allAchats[0];
-          currentAchatId = firstAchat.id;
-
-          setSelectedAchat(firstAchat);
-          setAchat(firstAchat);
-        } else {
-          const achatRes = await getAchatById(currentAchatId);
-          setAchat(achatRes.data);
-          setSelectedAchat(achatRes.data);
+        if (allAchats.length === 0) {
+          toast.warning("Aucun achat disponible");
+          setLoading(false);
+          return;
         }
 
-        const priseEnChargeRes = await getPriseEnChargeByAchat(currentAchatId);
-        setPriseEnCharge(priseEnChargeRes.data || []);
+        const firstAchat = allAchats[0];
+        currentAchatId = firstAchat.id;
 
-        // Générer les QR codes pour chaque bénéficiaire
-        const qrCodesMap = {};
-        for (const dto of priseEnChargeRes.data || []) {
-          if (dto.beneficiaire && dto.materiels) {
-            const numerosSerie = dto.materiels
-              .map(m => m.numeroSerie)
-              .filter(ns => ns && ns !== 'N/A');
-            
-            if (numerosSerie.length > 0) {
-              const qrData = JSON.stringify({
-                beneficiaire: `${dto.beneficiaire.nom} ${dto.beneficiaire.prenom}`,
-                matricule: dto.beneficiaire.matricule,
-                numerosSerie: numerosSerie,
-                total: numerosSerie.length
-              }, null, 2);
-              
-              try {
-                qrCodesMap[dto.beneficiaire.id] = await QRCode.toDataURL(qrData, {
-                  width: 120,
-                  margin: 1,
-                  color: {
-                    dark: '#000000',
-                    light: '#ffffff'
-                  }
-                });
-              } catch (error) {
-                console.error('Erreur génération QR code:', error);
-              }
-            }
-          }
-        }
-        setQrCodes(qrCodesMap);
-
-      } catch (error) {
-        console.error("Erreur chargement données:", error);
-        toast.error("Erreur lors du chargement des données");
-      } finally {
-        setLoading(false);
+        setSelectedAchat(firstAchat);
+        setAchat(firstAchat);
+      } else {
+        const achatRes = await getAchatById(currentAchatId);
+        setAchat(achatRes.data);
+        setSelectedAchat(achatRes.data);
       }
-    };
 
-    loadData();
-  }, [achatId]);
+      const priseEnChargeRes = await getPriseEnChargeByAchat(currentAchatId);
+      setPriseEnCharge(priseEnChargeRes.data || []);
+
+    } catch (error) {
+      console.error("Erreur chargement données:", error);
+      toast.error("Erreur lors du chargement des données");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadData();
+}, [achatId]);
+
 
   // Charger les matériels d'un bénéficiaire spécifique
   useEffect(() => {
@@ -348,8 +311,7 @@ const PriseEnCharge = () => {
           dto.beneficiaire, 
           dto.materiels, 
           index + 1,
-          isLandscape,
-          qrCodes[dto.beneficiaire?.id]
+          isLandscape
         )).join('')}
       </body>
       </html>
@@ -357,7 +319,7 @@ const PriseEnCharge = () => {
   };
 
   // Générer le HTML pour un formulaire
-  const generateFormHTML = (achat, beneficiaire, materiels, numero, isLandscape = false, qrCodeUrl) => {
+  const generateFormHTML = (achat, beneficiaire, materiels, numero, isLandscape = false) => {
     const totalTTC = calculateTotalTTC(materiels);
     const today = new Date().toLocaleDateString('fr-FR', {
       day: '2-digit',
@@ -389,16 +351,6 @@ const PriseEnCharge = () => {
 
     return `
       <div class="prise-en-charge-form ${landscapeClass}">
-        <!-- NOUVELLE LIGNE AVEC LES LOGOS -->
-        <div class="logo-row">
-          <div class="logo-left">
-            <img src="${logoLeft}" alt="Logo gauche" class="logo-image" />
-          </div>
-          <div class="logo-right">
-            <img src="${logoRight}" alt="Logo droit" class="logo-image" />
-          </div>
-        </div>
-
         <table class="form-header">
           <thead>
             <tr>
@@ -429,7 +381,8 @@ const PriseEnCharge = () => {
                 du ${formatDate(achat?.date) || '30/06/2025'} | BR ou DD N° :
               </td>
               <td colspan="4" class="section-value">
-                Fournisseur : ${achat?.fournisseur?.nom || 'GADE MAY CONSO'}
+                DU ${achat?.reference || ''}
+                <span class="fournisseur">Fournisseur : ${achat?.fournisseur?.nom || 'GADE MAY CONSO'}</span>
               </td>
             </tr>
           </tbody>
@@ -438,14 +391,10 @@ const PriseEnCharge = () => {
         <table class="form-section">
           <tbody>
             <tr>
-              <td rowspan="2" class="section-label detenteur-cell" style="width: 25%;">
-                <div>
-                  <strong>LE DETENTEUR</strong>
-                </div>
-                <div class="detenteur-info">
-                  Je soussigné : <strong>${beneficiaire?.nom?.toUpperCase()} ${beneficiaire?.prenom?.toUpperCase()}</strong><br>
-                  Avoir pris en charge les articles ci-dessous
-                </div>
+              <td rowspan="2" class="section-label">
+                <strong>LE DETENTEUR</strong><br>
+                Je soussigné : <strong>${beneficiaire?.nom?.toUpperCase()} ${beneficiaire?.prenom?.toUpperCase()}</strong><br>
+                Avoir pris en charge les articles ci-dessous
               </td>
               <td class="section-value">
                 Mle : ${beneficiaire?.matricule || '7950'}
@@ -454,11 +403,17 @@ const PriseEnCharge = () => {
                 C.A : ${beneficiaire?.affectation || ''}
               </td>
               <td class="section-value" colspan="2">
+                BUR : ${beneficiaire?.bureau || ''}
+              </td>
+            </tr>
+            <tr>
+              <td class="section-value">
                 DEP : ${beneficiaire?.departement || beneficiaire?.departementNom || 'DGR'}
               </td>
-              <td class="section-value" colspan="2">
-                SCE/BUR : ${beneficiaire?.service?.nom || beneficiaire?.serviceNom || beneficiaire?.bureau || ''}
+              <td class="section-value">
+                SCE : ${beneficiaire?.service?.nom || beneficiaire?.serviceNom || ''}
               </td>
+              <td class="section-value" colspan="2"></td>
             </tr>
           </tbody>
         </table>
@@ -489,17 +444,11 @@ const PriseEnCharge = () => {
             <tr>
               <td class="footer-left">
                 <div class="detenteur-signature">
-                  ${qrCodeUrl ? (
-                    `<div class="qr-code-container">
-                      <img src="${qrCodeUrl}" alt="QR Code" class="qr-code" />
-                    
-                    </div>`
-                  ) : (
-                    `<>
-                        <br />
-                      
-                    </>`
-                  )}
+                  <strong>LE DETENTEUR</strong><br>
+                  <br>
+                  <br>
+                  <br>
+                  Signature
                 </div>
               </td>
               <td class="footer-right">
@@ -539,36 +488,6 @@ const PriseEnCharge = () => {
       page-break-after: always;
       background: white;
       ${isLandscape ? 'width: 277mm; margin: 0 auto;' : ''}
-    }
-    
-    /* NOUVEAUX STYLES POUR LA LIGNE DES LOGOS */
-    .logo-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 15px;
-      border-bottom: 1px solid #ccc;
-      background-color: #f9f9f9;
-    }
-    
-    .logo-left, .logo-right {
-      flex: 1;
-      display: flex;
-      align-items: center;
-    }
-    
-    .logo-left {
-      justify-content: flex-start;
-    }
-    
-    .logo-right {
-      justify-content: flex-end;
-    }
-    
-    .logo-image {
-      max-height: 60px;
-      max-width: 150px;
-      object-fit: contain;
     }
     
     .landscape-mode {
@@ -611,42 +530,7 @@ const PriseEnCharge = () => {
     .section-label {
       font-size: ${isLandscape ? '12px' : '11px'};
       vertical-align: top;
-    }
-    
-    .detenteur-cell {
-      vertical-align: middle;
-      text-align: center;
-      padding: 10px !important;
-    }
-    
-    .qr-code-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 5px;
-    }
-    
-    .qr-code {
-      width: ${isLandscape ? '70px' : '80px'};
-      height: ${isLandscape ? '70px' : '80px'};
-      border: 1px solid #ccc;
-      margin-bottom: 5px;
-    }
-    
-    .signature-text {
-      font-size: ${isLandscape ? '10px' : '11px'};
-      margin: 5px 0;
-      font-style: italic;
-      color: #333;
-    }
-    
-    .detenteur-info {
-      text-align: left;
-      margin-top: 10px;
-      font-size: ${isLandscape ? '11px' : '12px'};
-      border-top: 1px dashed #ccc;
-      padding-top: 8px;
+      width: 25%;
     }
     
     .section-value {
@@ -657,7 +541,7 @@ const PriseEnCharge = () => {
     .fournisseur {
       display: block;
       margin-top: ${isLandscape ? '5px' : '10px'};
-      text-align: left;
+      text-align: right;
     }
     
     .form-table th {
@@ -674,7 +558,7 @@ const PriseEnCharge = () => {
     }
     
     .col-inventaire { width: 15%; }
-    .col-designation { width: 30%; }
+    .col-designation { width: 35%; }
     .col-serie { width: 15%; }
     .col-ute { width: 8%; }
     .col-qte { width: 8%; }
@@ -703,7 +587,6 @@ const PriseEnCharge = () => {
     .detenteur-signature,
     .date-signature {
       font-size: ${isLandscape ? '12px' : '11px'};
-      min-height: 100px;
     }
     
     .signature-space {
@@ -715,17 +598,6 @@ const PriseEnCharge = () => {
     @media print {
       body {
         padding: 0;
-      }
-      
-      .qr-code {
-        print-color-adjust: exact;
-        -webkit-print-color-adjust: exact;
-      }
-      
-      .logo-row {
-        background-color: #f9f9f9;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
       }
     }
   `;
@@ -982,7 +854,6 @@ const PriseEnCharge = () => {
                   formatDate={formatDate}
                   formatMontant={formatMontant}
                   calculateTotalTTC={calculateTotalTTC}
-                  qrCodeUrl={qrCodes[beneficiaireId]}
                 />
               </div>
             );
@@ -996,7 +867,6 @@ const PriseEnCharge = () => {
             formatDate={formatDate}
             formatMontant={formatMontant}
             calculateTotalTTC={calculateTotalTTC}
-            qrCodeUrl={qrCodes[selectedBeneficiaire.id]}
           />
         ) : (
           <div className="select-beneficiaire">
@@ -1044,8 +914,7 @@ const PriseEnChargeForm = ({
   numero, 
   formatDate, 
   formatMontant, 
-  calculateTotalTTC,
-  qrCodeUrl
+  calculateTotalTTC 
 }) => {
   const totalTTC = calculateTotalTTC(materiels);
   const today = new Date().toLocaleDateString('fr-FR', {
@@ -1060,16 +929,7 @@ const PriseEnChargeForm = ({
 
   return (
     <div className="prise-en-charge-form">
-      {/* NOUVELLE LIGNE AVEC LES LOGOS */}
-      <div className="logo-row">
-        <div className="logo-left">
-          <img src={logoLeft} alt="Logo gauche" className="logo-image" />
-        </div>
-        <div className="logo-right">
-          <img src={logoRight} alt="Logo droit" className="logo-image" />
-        </div>
-      </div>
-
+      {/* Même structure que generateFormHTML mais en JSX */}
       <table className="form-header">
         <thead>
           <tr>
@@ -1100,7 +960,8 @@ const PriseEnChargeForm = ({
               du {formatDate(achat?.date) || '30/06/2025'} | BR ou DD N° :
             </td>
             <td colSpan="4" className="section-value">
-                Fournisseur : {achat?.fournisseur?.nom || 'GADE MAY CONSO'}
+              DU {achat?.reference || ''}
+              <span className="fournisseur">Fournisseur : {achat?.fournisseur?.nom || 'GADE MAY CONSO'}</span>
             </td>
           </tr>
         </tbody>
@@ -1109,14 +970,10 @@ const PriseEnChargeForm = ({
       <table className="form-section">
         <tbody>
           <tr>
-            <td rowSpan="2" className="section-label detenteur-cell" style={{ width: '25%' }}>
-              <div>
-                <strong>LE DETENTEUR</strong>
-              </div>
-              <div className="detenteur-info">
-                Je soussigné : <strong>{beneficiaire?.nom?.toUpperCase()} {beneficiaire?.prenom?.toUpperCase()}</strong><br />
-                Avoir pris en charge les articles ci-dessous
-              </div>
+            <td rowSpan="2" className="section-label">
+              <strong>LE DETENTEUR</strong><br />
+              Je soussigné : <strong>{beneficiaire?.nom?.toUpperCase()} {beneficiaire?.prenom?.toUpperCase()}</strong><br />
+              Avoir pris en charge les articles ci-dessous
             </td>
             <td className="section-value">
               Mle : {beneficiaire?.matricule || '7950'}
@@ -1125,11 +982,17 @@ const PriseEnChargeForm = ({
               C.A : {beneficiaire?.affectation || ''}
             </td>
             <td className="section-value" colSpan="2">
+              BUR : {beneficiaire?.bureau || ''}
+            </td>
+          </tr>
+          <tr>
+            <td className="section-value">
               DEP : {beneficiaire?.departement || beneficiaire?.departementNom || 'DGR'}
             </td>
-            <td className="section-value" colSpan="2">
-              SCE/BUR : {beneficiaire?.service?.nom || beneficiaire?.serviceNom || beneficiaire?.bureau || ''}
+            <td className="section-value">
+              SCE : {beneficiaire?.service?.nom || beneficiaire?.serviceNom || ''}
             </td>
+            <td className="section-value" colSpan="2"></td>
           </tr>
         </tbody>
       </table>
@@ -1184,17 +1047,11 @@ const PriseEnChargeForm = ({
           <tr>
             <td className="footer-left">
               <div className="detenteur-signature">
-                {qrCodeUrl ? (
-                  <div className="qr-code-container">
-                    <img src={qrCodeUrl} alt="QR Code" className="qr-code" />
-                  
-                  </div>
-                ) : (
-                  <>
-                    <br />
-             
-                  </>
-                )}
+                <strong>LE DETENTEUR</strong><br />
+                <br />
+                <br />
+                <br />
+                Signature
               </div>
             </td>
             <td className="footer-right">

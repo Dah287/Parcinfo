@@ -48,7 +48,7 @@ function App() {
                    <Route path="/AffectationComplete" element={<AffectationComplete/>} />
                      <Route path="/ConsultationPrixAchat" element={<ConsultationPrixAchat />} />
                       <Route path="/attributions/PrisesEnChargeAchat" element={<PrisesEnChargeAchat />} />
-                      <Route path="/prise-en-charge/:achatId" element={<PriseEnCharge />} />
+                      {/* <Route path="/prise-en-charge/:achatId" element={<PriseEnCharge />} /> */}
                       <Route path="/prise-en-charge" element={<PriseEnCharge />} />
                        <Route path="/preparation-affectation-materiel" element={<PreparationMateriels />} />
                         <Route path="/gestion-beneficiaires" element={<GestionBeneficiaires />} />

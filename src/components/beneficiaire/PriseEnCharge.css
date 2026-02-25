@@ -475,3 +475,598 @@
     justify-content: center;
   }
 }
+
+/* Styles pour la ligne des logos */
+.logo-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: linear-gradient(to right, #f8f9fa, #ffffff, #f8f9fa);
+  border-bottom: 2px solid #003366;
+  margin-bottom: 10px;
+}
+
+.logo-left, .logo-right {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.logo-left {
+  justify-content: flex-start;
+}
+
+.logo-right {
+  justify-content: flex-end;
+}
+
+.logo-image {
+  max-height: 70px;
+  max-width: 200px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+
+.logo-image:hover {
+  transform: scale(1.05);
+}
+
+/* Style alternatif pour les logos dans le formulaire d'impression */
+@media print {
+  .logo-row {
+    background: white !important;
+    border-bottom: 2px solid #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .logo-image {
+    max-height: 60px;
+    max-width: 150px;
+  }
+}
+
+/* Styles responsifs pour les petits écrans */
+@media (max-width: 768px) {
+  .logo-row {
+    padding: 8px 12px;
+  }
+
+  .logo-image {
+    max-height: 50px;
+    max-width: 120px;
+  }
+}
+
+/* Style pour le mode paysage PDF */
+.landscape-mode .logo-row {
+  padding: 10px 25px;
+}
+
+.landscape-mode .logo-image {
+  max-height: 60px;
+  max-width: 180px;
+}
+
+/* Style pour le conteneur du formulaire */
+.prise-en-charge-form {
+  background: white;
+  border: 2px solid #003366;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 25px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Styles pour les tableaux du formulaire */
+.form-header,
+.form-section,
+.form-table,
+.form-footer {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.form-header th,
+.form-header td,
+.form-section td,
+.form-table th,
+.form-table td,
+.form-footer td {
+  border: 1px solid #ddd;
+  padding: 10px;
+}
+
+.form-header th {
+  background-color: #003366;
+  color: white;
+  font-weight: bold;
+}
+
+.form-header .title {
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.form-section {
+  background-color: #f5f5f5;
+}
+
+.section-label {
+  font-weight: bold;
+  color: #333;
+  width: 20%;
+}
+
+.section-value {
+  color: #555;
+}
+
+/* Style pour la cellule du détenteur */
+.detenteur-cell {
+  background-color: #e8f0fe;
+  vertical-align: top;
+}
+
+.detenteur-info {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #fff;
+  border-radius: 4px;
+  border-left: 3px solid #003366;
+}
+
+/* Styles pour le tableau des matériels */
+.form-table th {
+  background-color: #004080;
+  color: white;
+  font-size: 12px;
+  text-align: center;
+  padding: 12px 5px;
+}
+
+.form-table td {
+  padding: 10px 5px;
+  vertical-align: middle;
+}
+
+.form-table tbody tr:hover {
+  background-color: #f9f9f9;
+}
+
+/* Largeurs des colonnes */
+.col-inventaire { width: 15%; }
+.col-designation { width: 30%; }
+.col-serie { width: 15%; }
+.col-ute { width: 8%; }
+.col-qte { width: 8%; }
+.col-prix { width: 12%; }
+.col-total { width: 12%; }
+
+/* Alignments */
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+/* Style pour la ligne total */
+.total-row {
+  background-color: #e8f0fe;
+  font-weight: bold;
+}
+
+.total-row td {
+  padding: 12px 5px;
+  border-top: 2px solid #003366;
+}
+
+/* Styles pour le pied de page */
+.form-footer {
+  margin-top: 15px;
+}
+
+.footer-left, .footer-right {
+  padding: 15px;
+  vertical-align: top;
+  height: 150px;
+}
+
+.footer-left {
+  width: 50%;
+  background-color: #fafafa;
+}
+
+.footer-right {
+  width: 50%;
+  background-color: #f5f5f5;
+}
+
+/* Styles pour le QR Code */
+.qr-code-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+  border: 1px dashed #003366;
+}
+
+.qr-code {
+  width: 100px;
+  height: 100px;
+  margin-bottom: 8px;
+  border: 1px solid #ccc;
+  padding: 5px;
+  background: white;
+}
+
+.signature-text {
+  font-style: italic;
+  color: #666;
+  font-size: 12px;
+  border-top: 1px solid #ccc;
+  padding-top: 5px;
+  width: 100%;
+  text-align: center;
+}
+
+/* Styles pour la signature */
+.date-signature {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.signature-space {
+  height: 50px;
+  border-bottom: 1px solid #999;
+  margin-top: 10px;
+}
+
+/* Styles pour le mode paysage */
+.landscape-mode .form-table th {
+  font-size: 11px;
+  padding: 8px 3px;
+}
+
+.landscape-mode .form-table td {
+  font-size: 11px;
+  padding: 6px 3px;
+}
+
+.landscape-mode .qr-code {
+  width: 70px;
+  height: 70px;
+}
+
+/* Styles pour la barre d'outils */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background: white;
+  border-bottom: 2px solid #003366;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Styles pour les boutons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  gap: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: #003366;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #004080;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c82333;
+}
+
+.btn-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+  background-color: #138496;
+}
+
+.btn-warning {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #e0a800;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+/* Styles pour le toggle */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Styles pour le compteur de sélection */
+.selection-count {
+  background-color: #003366;
+  color: white;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Styles pour le conteneur principal */
+.prise-en-charge-container {
+  padding: 20px;
+  background-color: #f0f2f5;
+  min-height: 100vh;
+}
+
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Styles pour les cartes de bénéficiaires */
+.select-beneficiaire {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.select-beneficiaire h2 {
+  color: #003366;
+  margin-bottom: 20px;
+  font-size: 24px;
+}
+
+.beneficiaire-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.beneficiaire-card {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.beneficiaire-card:hover {
+  border-color: #003366;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,51,102,0.1);
+}
+
+.beneficiaire-card .icon {
+  font-size: 40px;
+  color: #003366;
+  margin-right: 15px;
+}
+
+.beneficiaire-card .info h3 {
+  color: #333;
+  margin-bottom: 5px;
+  font-size: 16px;
+}
+
+.beneficiaire-card .info p {
+  color: #666;
+  font-size: 14px;
+  margin: 2px 0;
+}
+
+/* Styles pour le mode sélection multiple */
+.form-wrapper {
+  position: relative;
+  margin-bottom: 30px;
+  transition: all 0.3s ease;
+}
+
+.form-wrapper.selection-mode {
+  opacity: 0.9;
+}
+
+.form-wrapper.selection-mode:hover {
+  opacity: 1;
+}
+
+.selection-checkbox {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  background: white;
+  padding: 8px 15px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border: 1px solid #003366;
+}
+
+.selection-checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+
+.selection-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* Styles pour le chargement */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #003366;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Styles pour le dropdown des achats */
+.dropdown-container {
+  position: relative;
+}
+
+.space-y-3 > * + * {
+  margin-top: 12px;
+}
+
+/* Styles pour les badges */
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-blue {
+  background-color: #e3f2fd;
+  color: #003366;
+}
+
+.badge-green {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.prise-en-charge-form {
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Styles pour les messages d'erreur */
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 12px 20px;
+  border-radius: 4px;
+  border: 1px solid #f5c6cb;
+  margin-bottom: 20px;
+}
+
+/* Styles pour les messages de succès */
+.success-message {
+  background-color: #d4edda;
+  color: #155724;
+  padding: 12px 20px;
+  border-radius: 4px;
+  border: 1px solid #c3e6cb;
+  margin-bottom: 20px;
+}
