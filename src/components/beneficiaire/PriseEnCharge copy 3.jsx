@@ -10,8 +10,8 @@ import QRCode from 'qrcode';
 import './PriseEnCharge.css';
 
 // Importer les logos (ajustez les chemins selon votre structure)
-import logoLeft from '../../assets/images/logo-left.png';
-import logoRight from '../../assets/images/logo-right.png';
+import logoLeft from '../../assets/images/logo-left.png'; // Logo de gauche
+import logoRight from '../../assets/images/logo-right.png'; // Logo de droite
 
 const PriseEnCharge = () => {
   const { achatId } = useParams();
@@ -35,36 +35,6 @@ const PriseEnCharge = () => {
   const [achatSearch, setAchatSearch] = useState('');
   const [loadingFilters, setLoadingFilters] = useState(false);
   const [selectedAchat, setSelectedAchat] = useState(null);
-
-  // Fonction pour générer un acronyme
-  const generateAcronym = (text) => {
-    if (!text) return '';
-    if (text === 'N/A') return 'N/A';
-    
-    // Si le texte est déjà court (moins de 20 caractères), on le garde tel quel
-    if (text.length <= 20) return text;
-    
-    // Séparer les mots
-    const words = text.split(' ');
-    
-    // Si c'est une phrase avec plusieurs mots
-    if (words.length > 1) {
-      // Liste des mots à ignorer (articles, prépositions)
-      const ignoreWords = ['DE', 'DU', 'DES', 'LE', 'LA', 'LES', 'ET', 'À', 'AU', 'AUX', 'EN', 'POUR', 'PAR', 'SUR', 'DANS'];
-      
-      // Prendre la première lettre de chaque mot significatif
-      const acronym = words
-        .map(word => word.toUpperCase())
-        .filter(word => !ignoreWords.includes(word) && word.length > 1)
-        .map(word => word.charAt(0))
-        .join('.');
-      
-      return acronym + '.';
-    }
-    
-    // Si c'est un seul mot long, le tronquer
-    return text.substring(0, 15) + '...';
-  };
 
   // Charger la liste des achats pour le sélecteur
   useEffect(() => {
@@ -256,11 +226,10 @@ const PriseEnCharge = () => {
     
     setTimeout(() => {
       printWindow.print();
-      printWindow.close();
     }, 500);
   };
 
-  // FONCTION DE TÉLÉCHARGEMENT PDF
+  // FONCTION DE TÉLÉCHARGEMENT PDF EN PAYSAGE
   const handleDownloadPDF = async () => {
     const formsToPrint = getFormsToPrint();
     if (!formsToPrint) return;
@@ -274,13 +243,13 @@ const PriseEnCharge = () => {
       pdfContainer.style.position = 'absolute';
       pdfContainer.style.left = '-9999px';
       pdfContainer.style.top = '0';
-      pdfContainer.style.width = '297mm';
+      pdfContainer.style.width = '297mm'; // Largeur A4 paysage
       pdfContainer.style.backgroundColor = 'white';
       pdfContainer.style.padding = '10mm';
       pdfContainer.innerHTML = generatePrintHTML(formsToPrint, true);
       document.body.appendChild(pdfContainer);
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Créer le PDF en orientation paysage
       const pdf = new jsPDF({
@@ -294,14 +263,12 @@ const PriseEnCharge = () => {
       for (let i = 0; i < forms.length; i++) {
         const form = forms[i];
         form.style.width = '277mm';
-        form.style.height = 'auto';
-        form.style.overflow = 'visible';
         
         const canvas = await html2canvas(form, {
-          scale: 2.5,
+          scale: 2,
           backgroundColor: '#ffffff',
           logging: false,
-          allowTaint: true,
+          allowTaint: false,
           useCORS: true,
           windowWidth: 1200,
           onclone: (clonedDoc) => {
@@ -309,7 +276,6 @@ const PriseEnCharge = () => {
             clonedForms.forEach(f => {
               f.style.width = '277mm';
               f.style.margin = '0 auto';
-              f.style.border = '2px solid #000';
             });
           }
         });
@@ -317,12 +283,14 @@ const PriseEnCharge = () => {
         const imgData = canvas.toDataURL('image/png');
         const imgWidth = 277;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const xOffset = (297 - imgWidth) / 2;
+        const yOffset = (210 - imgHeight) / 2;
 
         if (i > 0) {
           pdf.addPage();
         }
 
-        pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight, undefined, 'FAST');
+        pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight, undefined, 'FAST');
       }
 
       const beneficiaireName = selectedBeneficiaire 
@@ -387,8 +355,9 @@ const PriseEnCharge = () => {
       </html>
     `;
   };
+// Fonction pour générer un acronyme à partir d'un nom long
 
-  // Générer le HTML pour un formulaire (version impression/PDF)
+  // Générer le HTML pour un formulaire
   const generateFormHTML = (achat, beneficiaire, materiels, numero, isLandscape = false, qrCodeUrl) => {
     const totalTTC = calculateTotalTTC(materiels);
     const today = new Date().toLocaleDateString('fr-FR', {
@@ -421,7 +390,7 @@ const PriseEnCharge = () => {
 
     return `
       <div class="prise-en-charge-form ${landscapeClass}">
-        <!-- LIGNE AVEC LES LOGOS -->
+        <!-- NOUVELLE LIGNE AVEC LES LOGOS -->
         <div class="logo-row">
           <div class="logo-left">
             <img src="${logoLeft}" alt="Logo gauche" class="logo-image" />
@@ -479,25 +448,25 @@ const PriseEnCharge = () => {
                   Avoir pris en charge les articles ci-dessous
                 </div>
               </td>
-              <td class="section-value">
-                Mle : ${beneficiaire?.matricule || '7950'}
-              </td>
-              <td class="section-value" colspan="2">
-                DEP : ${generateAcronym(beneficiaire?.department?.name || beneficiaire?.departmentNom || beneficiaire?.departement || '')}
-              </td>
-              <td class="section-value" colspan="2">
-                SCE : ${generateAcronym(beneficiaire?.service?.name || beneficiaire?.serviceNom || '')}
-              </td>
-              <td class="section-value">
-                BUR : ${generateAcronym(beneficiaire?.bureau?.name || beneficiaire?.bureauNom || '')}
-              </td>
+            <td className="section-value">
+              Mle : ${beneficiaire?.matricule || '7950'}
+            </td>
+            <td className="section-value" colSpan="2">
+              DEP : ${generateAcronym(beneficiaire?.department?.name || beneficiaire?.departmentNom || beneficiaire?.department || '')}
+            </td>
+            <td className="section-value" colSpan="2">
+              SCE : ${generateAcronym(beneficiaire?.service?.name || beneficiaire?.serviceNom || beneficiaire?.service || '')}
+            </td>
+            <td className="section-value">
+              BUR : ${generateAcronym(beneficiaire?.bureau?.name || beneficiaire?.bureauNom || beneficiaire?.bureau || '')}
+            </td>
             </tr>
           </tbody>
         </table>
 
         <table class="form-table">
           <thead>
-            <tr colspan="7" class="title">
+            <tr>
               <th class="col-inventaire">CODE INVENTAIRE</th>
               <th class="col-designation">DESIGNATION</th>
               <th class="col-serie">SERIE</th>
@@ -524,10 +493,14 @@ const PriseEnCharge = () => {
                   ${qrCodeUrl ? (
                     `<div class="qr-code-container">
                       <img src="${qrCodeUrl}" alt="QR Code" class="qr-code" />
-                      <span class="signature-text">Scanner pour vérifier</span>
+                        <span class="signature-text">Scanner pour vérifier les détails de la prise en charge</span>
                     </div>`
                   ) : (
-                    `<span class="signature-text">Aucun QR code disponible</span>`
+                    `<>
+                    <span class="signature-text">Aucun QR code disponible</span>
+                        <br />
+                      
+                    </>`
                   )}
                 </div>
               </td>
@@ -535,7 +508,8 @@ const PriseEnCharge = () => {
                 <div class="date-signature">
                   Fait à El Jadida le : ${today}<br>
                   <strong>SIGNATURE</strong><br>
-
+                  <br>
+                  <br>
                   <br>
                   <div class="signature-space"></div>
                 </div>
@@ -556,27 +530,26 @@ const PriseEnCharge = () => {
     }
     
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: Arial, sans-serif;
       background: white;
       padding: ${isLandscape ? '5mm' : '10mm'};
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
     }
     
     .prise-en-charge-form {
-      border: 2px solid black !important;
+      border: 2px solid #000;
       margin-bottom: 20px;
       page-break-after: always;
       background: white;
       ${isLandscape ? 'width: 277mm; margin: 0 auto;' : ''}
     }
     
+    /* NOUVEAUX STYLES POUR LA LIGNE DES LOGOS */
     .logo-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 10px 15px;
-      border-bottom: 2px solid black;
+      border-bottom: 1px solid #ccc;
       background-color: #f9f9f9;
     }
     
@@ -601,54 +574,51 @@ const PriseEnCharge = () => {
     }
     
     .landscape-mode {
-      font-size: 12px;
+      font-size: ${isLandscape ? '12px' : '11px'};
     }
     
-    table {
+    .form-header,
+    .form-section,
+    .form-table,
+    .form-footer {
       width: 100%;
       border-collapse: collapse;
-      border: 1px solid black;
+      border: 1px solid #000;
     }
     
-    th, td {
-      border: 1px solid black;
-      padding: 8px;
+    .form-header th,
+    .form-header td,
+    .form-section td,
+    .form-table th,
+    .form-table td,
+    .form-footer td {
+      border: 1px solid #000;
+      padding: ${isLandscape ? '6px' : '8px'};
     }
     
     .title {
-      font-size: 18px;
+      font-size: ${isLandscape ? '18px' : '16px'};
       font-weight: bold;
       text-align: center;
       text-transform: uppercase;
-      background-color: #e0e0e0;
+      padding: ${isLandscape ? '8px' : '10px'};
     }
     
     .organization {
-      font-size: 14px;
+      font-size: ${isLandscape ? '14px' : '12px'};
       text-align: left;
-      padding: 5px;
+      padding: ${isLandscape ? '4px' : '5px'};
     }
     
     .section-label {
-      font-size: 12px;
+      font-size: ${isLandscape ? '12px' : '11px'};
       vertical-align: top;
-      font-weight: bold;
-      background-color: #f0f0f0;
     }
     
     .detenteur-cell {
       vertical-align: middle;
       text-align: center;
       padding: 10px !important;
-      background-color: #f5f5f5;
-    }
-    
-    .detenteur-info {
-      text-align: left;
-      margin-top: 10px;
-      font-size: 12px;
-      border-top: 1px dashed #999;
-      padding-top: 8px;
     }
     
     .qr-code-container {
@@ -660,30 +630,49 @@ const PriseEnCharge = () => {
     }
     
     .qr-code {
-      width: 80px;
-      height: 80px;
-      border: 1px solid #999;
+      width: ${isLandscape ? '70px' : '80px'};
+      height: ${isLandscape ? '70px' : '80px'};
+      border: 1px solid #ccc;
       margin-bottom: 5px;
     }
     
     .signature-text {
-      font-size: 11px;
+      font-size: ${isLandscape ? '10px' : '11px'};
       margin: 5px 0;
       font-style: italic;
       color: #333;
     }
     
+    .detenteur-info {
+      text-align: left;
+      margin-top: 10px;
+      font-size: ${isLandscape ? '11px' : '12px'};
+      border-top: 1px dashed #ccc;
+      padding-top: 8px;
+    }
+    
     .section-value {
-      font-size: 12px;
+      font-size: ${isLandscape ? '12px' : '11px'};
       vertical-align: top;
     }
     
+    .fournisseur {
+      display: block;
+      margin-top: ${isLandscape ? '5px' : '10px'};
+      text-align: left;
+    }
+    
     .form-table th {
-      background-color: #d0d0d0;
-      font-size: 11px;
-      font-weight: bold;
+      background: #f0f0f0;
+      font-size: ${isLandscape ? '11px' : '10px'};
       text-transform: uppercase;
       text-align: center;
+      padding: ${isLandscape ? '4px' : '6px'};
+    }
+    
+    .form-table td {
+      font-size: ${isLandscape ? '12px' : '11px'};
+      padding: ${isLandscape ? '6px' : '8px'};
     }
     
     .col-inventaire { width: 15%; }
@@ -699,30 +688,46 @@ const PriseEnCharge = () => {
     
     .total-row {
       font-weight: bold;
-      background-color: #f0f0f0;
+      background: #f9f9f9;
     }
     
-    .footer-left, .footer-right {
+    .form-footer {
+      border-top: 2px solid #000;
+    }
+    
+    .footer-left,
+    .footer-right {
       width: 50%;
       vertical-align: top;
-      padding: 15px;
-      height: 120px;
+      padding: ${isLandscape ? '15px' : '20px'};
+    }
+    
+    .detenteur-signature,
+    .date-signature {
+      font-size: ${isLandscape ? '12px' : '11px'};
+      min-height: 100px;
     }
     
     .signature-space {
-      height: 50px;
-      border-bottom: 1px solid #999;
-      margin-top: 10px;
+      height: ${isLandscape ? '40px' : '60px'};
+      border: 1px dashed #ccc;
+      margin-top: ${isLandscape ? '5px' : '10px'};
     }
     
     @media print {
       body {
         padding: 0;
-        margin: 0;
       }
-      .prise-en-charge-form {
-        box-shadow: none;
-        border: 2px solid black !important;
+      
+      .qr-code {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      
+      .logo-row {
+        background-color: #f9f9f9;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
     }
   `;
@@ -733,7 +738,30 @@ const PriseEnCharge = () => {
       return total + (prixUnitaire * 1);
     }, 0);
   };
-
+const generateAcronym = (text) => {
+  if (!text) return '';
+  
+  // Si le texte est déjà court (moins de 15 caractères), on le garde tel quel
+  if (text.length <= 15) return text;
+  
+  // Séparer les mots et prendre la première lettre de chaque mot
+  const words = text.split(' ');
+  
+  // Si c'est une phrase avec plusieurs mots
+  if (words.length > 1) {
+    // Prendre la première lettre de chaque mot, en ignorant les mots de liaison courts
+    const acronym = words
+      .filter(word => word.length > 2) // Ignorer les mots comme "DE", "DU", "DES", "LE", "LA", etc.
+      .map(word => word.charAt(0))
+      .join('.')
+      .toUpperCase();
+    
+    return acronym + '.';
+  }
+  
+  // Si c'est un seul mot long, le tronquer
+  return text.substring(0, 12) + '...';
+};
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -1054,39 +1082,33 @@ const PriseEnChargeForm = ({
   const getPrixUnitaire = (materiel) => {
     return materiel.prix?.prixUnitaireHT || materiel.prix?.prixUnitaire || 0;
   };
-
-  const generateAcronym = (text) => {
-    if (!text) return '';
-    if (text === 'N/A') return 'N/A';
+const generateAcronym = (text) => {
+  if (!text) return '';
+  
+  // Si le texte est déjà court (moins de 15 caractères), on le garde tel quel
+  if (text.length <= 15) return text;
+  
+  // Séparer les mots et prendre la première lettre de chaque mot
+  const words = text.split(' ');
+  
+  // Si c'est une phrase avec plusieurs mots
+  if (words.length > 1) {
+    // Prendre la première lettre de chaque mot, en ignorant les mots de liaison courts
+    const acronym = words
+      .filter(word => word.length > 2) // Ignorer les mots comme "DE", "DU", "DES", "LE", "LA", etc.
+      .map(word => word.charAt(0))
+      .join('.')
+      .toUpperCase();
     
-    // Si le texte est déjà court (moins de 20 caractères), on le garde tel quel
-    if (text.length <= 20) return text;
-    
-    // Séparer les mots
-    const words = text.split(' ');
-    
-    // Si c'est une phrase avec plusieurs mots
-    if (words.length > 1) {
-      // Liste des mots à ignorer (articles, prépositions)
-      const ignoreWords = ['DE', 'DU', 'DES', 'LE', 'LA', 'LES', 'ET', 'À', 'AU', 'AUX', 'EN', 'POUR', 'PAR', 'SUR', 'DANS'];
-      
-      // Prendre la première lettre de chaque mot significatif
-      const acronym = words
-        .map(word => word.toUpperCase())
-        .filter(word => !ignoreWords.includes(word) && word.length > 1)
-        .map(word => word.charAt(0))
-        .join('.');
-      
-      return acronym + '.';
-    }
-    
-    // Si c'est un seul mot long, le tronquer
-    return text.substring(0, 15) + '...';
-  };
-
+    return acronym + '.';
+  }
+  
+  // Si c'est un seul mot long, le tronquer
+  return text.substring(0, 12) + '...';
+};
   return (
     <div className="prise-en-charge-form">
-      {/* LIGNE AVEC LES LOGOS */}
+      {/* NOUVELLE LIGNE AVEC LES LOGOS */}
       <div className="logo-row">
         <div className="logo-left">
           <img src={logoLeft} alt="Logo gauche" className="logo-image" />
@@ -1126,7 +1148,7 @@ const PriseEnChargeForm = ({
               du {formatDate(achat?.date) || '30/06/2025'} | BR ou DD N° :
             </td>
             <td colSpan="4" className="section-value">
-              Fournisseur : {achat?.fournisseur?.nom || 'GADE MAY CONSO'}
+                Fournisseur : {achat?.fournisseur?.nom || 'GADE MAY CONSO'}
             </td>
           </tr>
         </tbody>
@@ -1148,21 +1170,23 @@ const PriseEnChargeForm = ({
               Mle : {beneficiaire?.matricule || '7950'}
             </td>
             <td className="section-value" colSpan="2">
-              DEP : {generateAcronym(beneficiaire?.department?.name || beneficiaire?.departmentNom || beneficiaire?.departement || '')}
+              DEP : {generateAcronym(beneficiaire?.department?.name || beneficiaire?.departmentNom || beneficiaire?.department || '')}
             </td>
             <td className="section-value" colSpan="2">
-              SCE : {generateAcronym(beneficiaire?.service?.name || beneficiaire?.serviceNom || '')}
+              SCE : {generateAcronym(beneficiaire?.service?.name || beneficiaire?.serviceNom || beneficiaire?.service || '')}
             </td>
             <td className="section-value">
-              BUR : {generateAcronym(beneficiaire?.bureau?.name || beneficiaire?.bureauNom || '')}
+              BUR : {generateAcronym(beneficiaire?.bureau?.name || beneficiaire?.bureauNom || beneficiaire?.bureau || '')}
             </td>
+
+
           </tr>
         </tbody>
       </table>
 
       <table className="form-table">
         <thead>
-          <tr colspan="7" class="title">
+          <tr>
             <th className="col-inventaire">CODE INVENTAIRE</th>
             <th className="col-designation">DESIGNATION</th>
             <th className="col-serie">SERIE</th>
@@ -1213,10 +1237,14 @@ const PriseEnChargeForm = ({
                 {qrCodeUrl ? (
                   <div className="qr-code-container">
                     <img src={qrCodeUrl} alt="QR Code" className="qr-code" />
-                    <span className="signature-text">Scanner pour vérifier</span>
+                  
                   </div>
                 ) : (
-                  <span className="signature-text">Aucun QR code disponible</span>
+                  <>
+                   <span class="signature-text">Aucun QR code disponible</span>
+                    <br />
+             
+                  </>
                 )}
               </div>
             </td>
@@ -1224,8 +1252,8 @@ const PriseEnChargeForm = ({
               <div className="date-signature">
                 Fait à El Jadida le : {today}<br />
                 <strong>SIGNATURE</strong><br />
-
-
+                <br />
+                <br />
                 <br />
                 <div className="signature-space"></div>
               </div>

@@ -14,23 +14,28 @@ import {
   FiCheck,
   FiRefreshCw,
   FiFilter,
-  FiChevronDown,
-  FiChevronUp,
   FiInfo,
   FiDownload,
   FiEye,
-  FiAlertCircle
+  FiAlertCircle,
+  FiHome,
+  FiLayers,
+  FiGrid
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import {
   getAllBeneficiaires,
-  getBeneficiaireById,
   searchBeneficiaires,
-  getBeneficiairesByDepartement,
   createBeneficiaire,
   updateBeneficiaire,
-  deleteBeneficiaire
+  deleteBeneficiaire,
+  getBeneficiairesByBureau,
+  getBeneficiairesByDepartment,
+  getBeneficiairesByService
 } from '../../services/beneficiareService';
+import { getAllBureaux } from '../../services/bureauService';
+import { getAllDepartments } from '../../services/departmentService';
+import { getAllServices } from '../../services/serviceService';
 
 const GestionBeneficiaires = () => {
   // États principaux
@@ -41,10 +46,16 @@ const GestionBeneficiaires = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', 'view'
   
+  // États pour les listes déroulantes
+  const [bureaux, setBureaux] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [services, setServices] = useState([]);
+  
   // États pour les filtres et recherche
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDepartement, setSelectedDepartement] = useState('');
-  const [departements, setDepartements] = useState([]);
+  const [selectedBureau, setSelectedBureau] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedService, setSelectedService] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   
   // État pour le formulaire
@@ -54,40 +65,46 @@ const GestionBeneficiaires = () => {
     email: '',
     telephone: '',
     matricule: '',
-    departement: '',
-    fonction: ''
+    fonction: '',
+    bureauId: '',
+    departmentId: '',
+    serviceId: ''
   });
   
   // État pour les erreurs de validation
   const [errors, setErrors] = useState({});
 
-  // Charger les bénéficiaires au montage
+  // Charger les données au montage
   useEffect(() => {
-    loadBeneficiaires();
+    loadInitialData();
   }, []);
 
-  // Filtrer les bénéficiaires quand les filtres changent
+  // Charger les bénéficiaires quand les filtres changent
   useEffect(() => {
     filterBeneficiaires();
-  }, [searchTerm, selectedDepartement, beneficiaires]);
+  }, [searchTerm, selectedBureau, selectedDepartment, selectedService, beneficiaires]);
 
-  // Extraire les départements uniques
-  useEffect(() => {
-    const uniqueDepts = [...new Set(beneficiaires.map(b => b.departement).filter(Boolean))];
-    setDepartements(uniqueDepts);
-  }, [beneficiaires]);
-
-  // Charger tous les bénéficiaires
-  const loadBeneficiaires = async () => {
+  // Charger toutes les données initiales
+  const loadInitialData = async () => {
     try {
       setLoading(true);
-      const response = await getAllBeneficiaires();
-      setBeneficiaires(response.data || []);
-      setFilteredBeneficiaires(response.data || []);
-      toast.success('Bénéficiaires chargés avec succès');
+      const [benefRes, burRes, deptRes, servRes] = await Promise.all([
+        getAllBeneficiaires(),
+        getAllBureaux(),
+        getAllDepartments(),
+        getAllServices()
+      ]);
+      
+      setBeneficiaires(benefRes.data || []);
+      setFilteredBeneficiaires(benefRes.data || []);
+      setBureaux(burRes.data || []);
+      setDepartments(deptRes.data || []);
+      setServices(servRes.data || []);
+      
+      toast.success('Données chargées avec succès');
     } catch (error) {
       console.error('Erreur chargement:', error);
-      toast.error('Erreur lors du chargement des bénéficiaires');
+      toast.error('Erreur lors du chargement des données');
     } finally {
       setLoading(false);
     }
@@ -105,19 +122,32 @@ const GestionBeneficiaires = () => {
         (b.prenom && b.prenom.toLowerCase().includes(searchLower)) ||
         (b.email && b.email.toLowerCase().includes(searchLower)) ||
         (b.matricule && b.matricule.toLowerCase().includes(searchLower)) ||
-        (b.fonction && b.fonction.toLowerCase().includes(searchLower))
+        (b.fonction && b.fonction.toLowerCase().includes(searchLower)) ||
+        (b.bureau?.name?.toLowerCase().includes(searchLower)) ||
+        (b.department?.name?.toLowerCase().includes(searchLower)) ||
+        (b.service?.name?.toLowerCase().includes(searchLower))
       );
     }
     
+    // Filtre par bureau
+    if (selectedBureau) {
+      filtered = filtered.filter(b => b.bureau?.id === parseInt(selectedBureau));
+    }
+    
     // Filtre par département
-    if (selectedDepartement) {
-      filtered = filtered.filter(b => b.departement === selectedDepartement);
+    if (selectedDepartment) {
+      filtered = filtered.filter(b => b.department?.id === parseInt(selectedDepartment));
+    }
+    
+    // Filtre par service
+    if (selectedService) {
+      filtered = filtered.filter(b => b.service?.id === parseInt(selectedService));
     }
     
     setFilteredBeneficiaires(filtered);
   };
 
-  // Recherche avancée
+  // Recherche avancée via API
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
       filterBeneficiaires();
@@ -136,18 +166,39 @@ const GestionBeneficiaires = () => {
     }
   };
 
-  // Filtrer par département (via API)
-  const handleDepartementFilter = async (departement) => {
-    setSelectedDepartement(departement);
+  // Filtrer par bureau via API
+  const handleBureauFilter = async (bureauId) => {
+    setSelectedBureau(bureauId);
     
-    if (!departement) {
+    if (!bureauId) {
       filterBeneficiaires();
       return;
     }
     
     try {
       setLoading(true);
-      const response = await getBeneficiairesByDepartement(departement);
+      const response = await getBeneficiairesByBureau(bureauId);
+      setFilteredBeneficiaires(response.data || []);
+    } catch (error) {
+      console.error('Erreur filtrage:', error);
+      toast.error('Erreur lors du filtrage par bureau');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filtrer par département via API
+  const handleDepartmentFilter = async (departmentId) => {
+    setSelectedDepartment(departmentId);
+    
+    if (!departmentId) {
+      filterBeneficiaires();
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await getBeneficiairesByDepartment(departmentId);
       setFilteredBeneficiaires(response.data || []);
     } catch (error) {
       console.error('Erreur filtrage:', error);
@@ -157,10 +208,33 @@ const GestionBeneficiaires = () => {
     }
   };
 
+  // Filtrer par service via API
+  const handleServiceFilter = async (serviceId) => {
+    setSelectedService(serviceId);
+    
+    if (!serviceId) {
+      filterBeneficiaires();
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await getBeneficiairesByService(serviceId);
+      setFilteredBeneficiaires(response.data || []);
+    } catch (error) {
+      console.error('Erreur filtrage:', error);
+      toast.error('Erreur lors du filtrage par service');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Réinitialiser les filtres
   const resetFilters = () => {
     setSearchTerm('');
-    setSelectedDepartement('');
+    setSelectedBureau('');
+    setSelectedDepartment('');
+    setSelectedService('');
     setFilteredBeneficiaires(beneficiaires);
   };
 
@@ -172,8 +246,10 @@ const GestionBeneficiaires = () => {
       email: '',
       telephone: '',
       matricule: '',
-      departement: '',
-      fonction: ''
+      fonction: '',
+      bureauId: '',
+      departmentId: '',
+      serviceId: ''
     });
     setErrors({});
     setModalMode('create');
@@ -183,7 +259,17 @@ const GestionBeneficiaires = () => {
   // Ouvrir le modal pour voir les détails
   const handleOpenView = (beneficiaire) => {
     setSelectedBeneficiaire(beneficiaire);
-    setFormData(beneficiaire);
+    setFormData({
+      nom: beneficiaire.nom || '',
+      prenom: beneficiaire.prenom || '',
+      email: beneficiaire.email || '',
+      telephone: beneficiaire.telephone || '',
+      matricule: beneficiaire.matricule || '',
+      fonction: beneficiaire.fonction || '',
+      bureauId: beneficiaire.bureau?.id || '',
+      departmentId: beneficiaire.department?.id || '',
+      serviceId: beneficiaire.service?.id || ''
+    });
     setModalMode('view');
     setShowModal(true);
   };
@@ -191,7 +277,17 @@ const GestionBeneficiaires = () => {
   // Ouvrir le modal pour modifier
   const handleOpenEdit = (beneficiaire) => {
     setSelectedBeneficiaire(beneficiaire);
-    setFormData(beneficiaire);
+    setFormData({
+      nom: beneficiaire.nom || '',
+      prenom: beneficiaire.prenom || '',
+      email: beneficiaire.email || '',
+      telephone: beneficiaire.telephone || '',
+      matricule: beneficiaire.matricule || '',
+      fonction: beneficiaire.fonction || '',
+      bureauId: beneficiaire.bureau?.id || '',
+      departmentId: beneficiaire.department?.id || '',
+      serviceId: beneficiaire.service?.id || ''
+    });
     setErrors({});
     setModalMode('edit');
     setShowModal(true);
@@ -207,8 +303,10 @@ const GestionBeneficiaires = () => {
       email: '',
       telephone: '',
       matricule: '',
-      departement: '',
-      fonction: ''
+      fonction: '',
+      bureauId: '',
+      departmentId: '',
+      serviceId: ''
     });
     setErrors({});
   };
@@ -239,11 +337,23 @@ const GestionBeneficiaires = () => {
     if (!formData.prenom?.trim()) {
       newErrors.prenom = 'Le prénom est requis';
     }
+    if (!formData.matricule?.trim()) {
+      newErrors.matricule = 'Le matricule est requis';
+    }
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Email invalide';
     }
     if (formData.telephone && !/^[0-9+\-\s]{8,}$/.test(formData.telephone)) {
       newErrors.telephone = 'Téléphone invalide';
+    }
+    if (!formData.bureauId) {
+      newErrors.bureauId = 'Le bureau est requis';
+    }
+    if (!formData.departmentId) {
+      newErrors.departmentId = 'Le département est requis';
+    }
+    if (!formData.serviceId) {
+      newErrors.serviceId = 'Le service est requis';
     }
     
     setErrors(newErrors);
@@ -260,7 +370,7 @@ const GestionBeneficiaires = () => {
       const response = await createBeneficiaire(formData);
       toast.success('Bénéficiaire créé avec succès');
       handleCloseModal();
-      loadBeneficiaires(); // Recharger la liste
+      loadInitialData(); // Recharger les données
     } catch (error) {
       console.error('Erreur création:', error);
       toast.error(error.response?.data?.message || 'Erreur lors de la création');
@@ -279,7 +389,7 @@ const GestionBeneficiaires = () => {
       const response = await updateBeneficiaire(selectedBeneficiaire.id, formData);
       toast.success('Bénéficiaire modifié avec succès');
       handleCloseModal();
-      loadBeneficiaires(); // Recharger la liste
+      loadInitialData(); // Recharger les données
     } catch (error) {
       console.error('Erreur modification:', error);
       toast.error(error.response?.data?.message || 'Erreur lors de la modification');
@@ -298,7 +408,7 @@ const GestionBeneficiaires = () => {
       setLoading(true);
       await deleteBeneficiaire(id);
       toast.success('Bénéficiaire supprimé avec succès');
-      loadBeneficiaires(); // Recharger la liste
+      loadInitialData(); // Recharger les données
     } catch (error) {
       console.error('Erreur suppression:', error);
       toast.error(error.response?.data?.message || 'Erreur lors de la suppression');
@@ -309,7 +419,7 @@ const GestionBeneficiaires = () => {
 
   // Exporter les données
   const exportToCSV = () => {
-    const headers = ['ID', 'Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Département', 'Fonction'];
+    const headers = ['ID', 'Matricule', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Bureau', 'Département', 'Service', 'Fonction'];
     const data = filteredBeneficiaires.map(b => [
       b.id,
       b.matricule || '',
@@ -317,7 +427,9 @@ const GestionBeneficiaires = () => {
       b.prenom || '',
       b.email || '',
       b.telephone || '',
-      b.departement || '',
+      b.bureau?.name || '',
+      b.department?.name || '',
+      b.service?.name || '',
       b.fonction || ''
     ]);
     
@@ -339,8 +451,99 @@ const GestionBeneficiaires = () => {
     toast.success('Export réussi');
   };
 
+  // Fonction pour tronquer le texte
+  const truncateText = (text, maxLength = 20) => {
+    if (!text) return 'N/A';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
+<div className="w-full p-6">
+
+
+      {/* Styles CSS pour le tableau avec scroll horizontal */}
+      <style jsx>{`
+        .table-container {
+          overflow-x: auto;
+          max-width: 100%;
+          border-radius: 0.5rem;
+        }
+        
+        .beneficiaires-table {
+          min-width: 1200px; /* Largeur minimale pour éviter que les colonnes ne se chevauchent */
+          width: 100%;
+          border-collapse: collapse;
+        }
+        
+        .beneficiaires-table th {
+          position: sticky;
+          top: 0;
+          background-color: #f9fafb;
+          z-index: 10;
+          white-space: nowrap;
+        }
+        
+        .beneficiaires-table td {
+          max-width: 200px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        
+        .beneficiaires-table td:hover {
+          white-space: normal;
+          word-wrap: break-word;
+          background-color: #f0f9ff;
+          cursor: help;
+        }
+        
+        /* Tooltip personnalisé */
+        [data-tooltip] {
+          position: relative;
+          cursor: help;
+        }
+        
+        [data-tooltip]:before {
+          content: attr(data-tooltip);
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #1f2937;
+          color: white;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          white-space: nowrap;
+          display: none;
+          z-index: 20;
+        }
+        
+        [data-tooltip]:hover:before {
+          display: block;
+        }
+        
+        /* Style pour la scrollbar */
+        .table-container::-webkit-scrollbar {
+          height: 8px;
+        }
+        
+        .table-container::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb {
+          background: #cbd5e0;
+          border-radius: 4px;
+        }
+        
+        .table-container::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
+
       {/* En-tête */}
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-6 mb-6 text-white">
         <div className="flex items-center justify-between">
@@ -351,7 +554,7 @@ const GestionBeneficiaires = () => {
             <div>
               <h1 className="text-3xl font-bold">Gestion des Bénéficiaires</h1>
               <p className="text-indigo-100 mt-1">
-                {filteredBeneficiaires.length} bénéficiaire(s) • {departements.length} département(s)
+                {filteredBeneficiaires.length} bénéficiaire(s) • {bureaux.length} bureau(x) • {departments.length} département(s) • {services.length} service(s)
               </p>
             </div>
           </div>
@@ -374,7 +577,7 @@ const GestionBeneficiaires = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="Rechercher par nom, prénom, email, matricule..."
+              placeholder="Rechercher par nom, prénom, email, matricule, bureau, département, service..."
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <FiSearch className="absolute left-3 top-3.5 text-gray-400" size={18} />
@@ -384,16 +587,16 @@ const GestionBeneficiaires = () => {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
-                showFilters || selectedDepartement
+                showFilters || selectedBureau || selectedDepartment || selectedService
                   ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               <FiFilter className="mr-2" />
               Filtres
-              {selectedDepartement && (
+              {(selectedBureau || selectedDepartment || selectedService) && (
                 <span className="ml-2 bg-white text-indigo-600 text-xs px-2 py-0.5 rounded-full">
-                  1
+                  {[selectedBureau, selectedDepartment, selectedService].filter(Boolean).length}
                 </span>
               )}
             </button>
@@ -408,7 +611,7 @@ const GestionBeneficiaires = () => {
             </button>
             
             <button
-              onClick={loadBeneficiaires}
+              onClick={loadInitialData}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
               disabled={loading}
             >
@@ -421,19 +624,54 @@ const GestionBeneficiaires = () => {
         {/* Filtres avancés */}
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <FiHome className="mr-2 text-indigo-500" />
+                  Bureau
+                </label>
+                <select
+                  value={selectedBureau}
+                  onChange={(e) => handleBureauFilter(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Tous les bureaux</option>
+                  {bureaux.map(bureau => (
+                    <option key={bureau.id} value={bureau.id}>{bureau.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <FiLayers className="mr-2 text-indigo-500" />
                   Département
                 </label>
                 <select
-                  value={selectedDepartement}
-                  onChange={(e) => handleDepartementFilter(e.target.value)}
+                  value={selectedDepartment}
+                  onChange={(e) => handleDepartmentFilter(e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">Tous les départements</option>
-                  {departements.map(dept => (
-                    <option key={dept} value={dept}>{dept}</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <FiGrid className="mr-2 text-indigo-500" />
+                  Service
+                </label>
+                <select
+                  value={selectedService}
+                  onChange={(e) => handleServiceFilter(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Tous les services</option>
+                  {services.map(service => (
+                    <option key={service.id} value={service.id}>{service.name}</option>
                   ))}
                 </select>
               </div>
@@ -441,7 +679,7 @@ const GestionBeneficiaires = () => {
               <div className="flex items-end">
                 <button
                   onClick={resetFilters}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors w-full"
                 >
                   Réinitialiser les filtres
                 </button>
@@ -451,10 +689,10 @@ const GestionBeneficiaires = () => {
         )}
       </div>
 
-      {/* Tableau des bénéficiaires */}
+      {/* Tableau des bénéficiaires avec scroll horizontal */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="table-container">
+          <table className="beneficiaires-table">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -467,7 +705,13 @@ const GestionBeneficiaires = () => {
                   Contact
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Bureau
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Département
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Service
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Fonction
@@ -480,7 +724,7 @@ const GestionBeneficiaires = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center">
+                  <td colSpan="8" className="px-6 py-12 text-center">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600 mr-3"></div>
                       <span className="text-gray-500">Chargement...</span>
@@ -489,11 +733,11 @@ const GestionBeneficiaires = () => {
                 </tr>
               ) : filteredBeneficiaires.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center">
+                  <td colSpan="8" className="px-6 py-12 text-center">
                     <FiInfo className="mx-auto text-gray-400 text-4xl mb-3" />
                     <p className="text-gray-500 text-lg">Aucun bénéficiaire trouvé</p>
                     <p className="text-gray-400 text-sm mt-1">
-                      {searchTerm || selectedDepartement 
+                      {searchTerm || selectedBureau || selectedDepartment || selectedService
                         ? 'Essayez de modifier vos filtres' 
                         : 'Cliquez sur "Nouveau bénéficiaire" pour en créer un'}
                     </p>
@@ -504,19 +748,19 @@ const GestionBeneficiaires = () => {
                   <tr key={beneficiaire.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <FiHash className="text-gray-400 mr-2" size={14} />
-                        <span className="text-sm font-medium text-gray-900">
+                        <FiHash className="text-gray-400 mr-2 flex-shrink-0" size={14} />
+                        <span className="text-sm font-medium text-gray-900 truncate max-w-[100px]" title={beneficiaire.matricule || 'N/A'}>
                           {beneficiaire.matricule || 'N/A'}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="bg-indigo-100 rounded-full p-2 mr-3">
+                        <div className="bg-indigo-100 rounded-full p-2 mr-3 flex-shrink-0">
                           <FiUser className="text-indigo-600" size={14} />
                         </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
+                        <div className="truncate max-w-[150px]" title={`${beneficiaire.nom || ''} ${beneficiaire.prenom || ''}`}>
+                          <div className="text-sm font-medium text-gray-900 truncate">
                             {beneficiaire.nom} {beneficiaire.prenom}
                           </div>
                           <div className="text-xs text-gray-500">
@@ -526,17 +770,17 @@ const GestionBeneficiaires = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
+                      <div className="text-sm text-gray-900 truncate max-w-[150px]" title={`${beneficiaire.email || ''} ${beneficiaire.telephone || ''}`}>
                         {beneficiaire.email && (
                           <div className="flex items-center mb-1">
-                            <FiMail className="text-gray-400 mr-2" size={12} />
-                            {beneficiaire.email}
+                            <FiMail className="text-gray-400 mr-2 flex-shrink-0" size={12} />
+                            <span className="truncate">{beneficiaire.email}</span>
                           </div>
                         )}
                         {beneficiaire.telephone && (
                           <div className="flex items-center">
-                            <FiPhone className="text-gray-400 mr-2" size={12} />
-                            {beneficiaire.telephone}
+                            <FiPhone className="text-gray-400 mr-2 flex-shrink-0" size={12} />
+                            <span className="truncate">{beneficiaire.telephone}</span>
                           </div>
                         )}
                         {!beneficiaire.email && !beneficiaire.telephone && (
@@ -546,16 +790,32 @@ const GestionBeneficiaires = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <FiMapPin className="text-gray-400 mr-2" size={14} />
-                        <span className="text-sm text-gray-900">
-                          {beneficiaire.departement || 'N/A'}
+                        <FiHome className="text-gray-400 mr-2 flex-shrink-0" size={14} />
+                        <span className="text-sm text-gray-900 truncate max-w-[100px]" title={beneficiaire.bureau?.name || 'N/A'}>
+                          {beneficiaire.bureau?.name || 'N/A'}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <FiBriefcase className="text-gray-400 mr-2" size={14} />
-                        <span className="text-sm text-gray-900">
+                        <FiLayers className="text-gray-400 mr-2 flex-shrink-0" size={14} />
+                        <span className="text-sm text-gray-900 truncate max-w-[100px]" title={beneficiaire.department?.name || 'N/A'}>
+                          {beneficiaire.department?.name || 'N/A'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <FiGrid className="text-gray-400 mr-2 flex-shrink-0" size={14} />
+                        <span className="text-sm text-gray-900 truncate max-w-[100px]" title={beneficiaire.service?.name || 'N/A'}>
+                          {beneficiaire.service?.name || 'N/A'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <FiBriefcase className="text-gray-400 mr-2 flex-shrink-0" size={14} />
+                        <span className="text-sm text-gray-900 truncate max-w-[100px]" title={beneficiaire.fonction || 'N/A'}>
                           {beneficiaire.fonction || 'N/A'}
                         </span>
                       </div>
@@ -611,7 +871,7 @@ const GestionBeneficiaires = () => {
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-800 flex items-center">
                   {modalMode === 'create' && (
@@ -648,7 +908,7 @@ const GestionBeneficiaires = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                     <FiHash className="mr-2 text-indigo-500" />
-                    Matricule
+                    Matricule <span className="text-red-500 ml-1">*</span>
                   </label>
                   <input
                     type="text"
@@ -657,10 +917,16 @@ const GestionBeneficiaires = () => {
                     onChange={handleInputChange}
                     disabled={modalMode === 'view'}
                     className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                      modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
+                      errors.matricule ? 'border-red-500' : modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
                     }`}
                     placeholder="Ex: EMP001"
                   />
+                  {errors.matricule && (
+                    <p className="mt-1 text-xs text-red-500 flex items-center">
+                      <FiAlertCircle className="mr-1" size={12} />
+                      {errors.matricule}
+                    </p>
+                  )}
                 </div>
                 
                 {/* Nom et Prénom */}
@@ -765,75 +1031,141 @@ const GestionBeneficiaires = () => {
                   </div>
                 </div>
                 
-                {/* Département et Fonction */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Bureau, Département, Service */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                      <FiMapPin className="mr-2 text-indigo-500" />
-                      Département
+                      <FiHome className="mr-2 text-indigo-500" />
+                      Bureau <span className="text-red-500 ml-1">*</span>
                     </label>
-                    <input
-                      type="text"
-                      name="departement"
-                      value={formData.departement || ''}
+                    <select
+                      name="bureauId"
+                      value={formData.bureauId || ''}
                       onChange={handleInputChange}
                       disabled={modalMode === 'view'}
                       className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
+                        errors.bureauId ? 'border-red-500' : modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
                       }`}
-                      placeholder="Informatique"
-                    />
+                    >
+                      <option value="">Sélectionner un bureau</option>
+                      {bureaux.map(bureau => (
+                        <option key={bureau.id} value={bureau.id}>{bureau.name}</option>
+                      ))}
+                    </select>
+                    {errors.bureauId && (
+                      <p className="mt-1 text-xs text-red-500 flex items-center">
+                        <FiAlertCircle className="mr-1" size={12} />
+                        {errors.bureauId}
+                      </p>
+                    )}
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                      <FiBriefcase className="mr-2 text-indigo-500" />
-                      Fonction
+                      <FiLayers className="mr-2 text-indigo-500" />
+                      Département <span className="text-red-500 ml-1">*</span>
                     </label>
-                    <input
-                      type="text"
-                      name="fonction"
-                      value={formData.fonction || ''}
+                    <select
+                      name="departmentId"
+                      value={formData.departmentId || ''}
                       onChange={handleInputChange}
                       disabled={modalMode === 'view'}
                       className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                        modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
+                        errors.departmentId ? 'border-red-500' : modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
                       }`}
-                      placeholder="Développeur"
-                    />
+                    >
+                      <option value="">Sélectionner un département</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
+                    {errors.departmentId && (
+                      <p className="mt-1 text-xs text-red-500 flex items-center">
+                        <FiAlertCircle className="mr-1" size={12} />
+                        {errors.departmentId}
+                      </p>
+                    )}
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiGrid className="mr-2 text-indigo-500" />
+                      Service <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <select
+                      name="serviceId"
+                      value={formData.serviceId || ''}
+                      onChange={handleInputChange}
+                      disabled={modalMode === 'view'}
+                      className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                        errors.serviceId ? 'border-red-500' : modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
+                      }`}
+                    >
+                      <option value="">Sélectionner un service</option>
+                      {services.map(service => (
+                        <option key={service.id} value={service.id}>{service.name}</option>
+                      ))}
+                    </select>
+                    {errors.serviceId && (
+                      <p className="mt-1 text-xs text-red-500 flex items-center">
+                        <FiAlertCircle className="mr-1" size={12} />
+                        {errors.serviceId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Fonction */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                    <FiBriefcase className="mr-2 text-indigo-500" />
+                    Fonction
+                  </label>
+                  <input
+                    type="text"
+                    name="fonction"
+                    value={formData.fonction || ''}
+                    onChange={handleInputChange}
+                    disabled={modalMode === 'view'}
+                    className={`w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                      modalMode === 'view' ? 'bg-gray-50 border-gray-200' : 'border-gray-300'
+                    }`}
+                    placeholder="Développeur"
+                  />
                 </div>
               </div>
               
               {/* Boutons d'action */}
-              <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                >
-                  {modalMode === 'view' ? 'Fermer' : 'Annuler'}
-                </button>
-                
-                {modalMode !== 'view' && (
+              <div className="p-6 border-t border-gray-200 bg-gray-50 sticky bottom-0">
+                <div className="flex justify-end space-x-3">
                   <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center disabled:opacity-50"
+                    type="button"
+                    onClick={handleCloseModal}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
                   >
-                    {loading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                        {modalMode === 'create' ? 'Création...' : 'Modification...'}
-                      </>
-                    ) : (
-                      <>
-                        <FiCheck className="mr-2" />
-                        {modalMode === 'create' ? 'Créer' : 'Modifier'}
-                      </>
-                    )}
+                    {modalMode === 'view' ? 'Fermer' : 'Annuler'}
                   </button>
-                )}
+                  
+                  {modalMode !== 'view' && (
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                          {modalMode === 'create' ? 'Création...' : 'Modification...'}
+                        </>
+                      ) : (
+                        <>
+                          <FiCheck className="mr-2" />
+                          {modalMode === 'create' ? 'Créer' : 'Modifier'}
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </form>
           </div>

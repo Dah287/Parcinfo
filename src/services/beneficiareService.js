@@ -1,3 +1,4 @@
+// services/beneficiareService.js
 import axios from 'axios';
 
 const API_BASE_URL = 'http://192.168.1.80:8080/api/beneficiaires';
@@ -34,16 +35,30 @@ export const searchBeneficiaires = (keyword) => {
   });
 };
 
-// 🔹 Bénéficiaires par département
-export const getBeneficiairesByDepartement = (departement) => {
-  return axios.get(`${API_BASE_URL}/departement/${departement}`);
+// 🔹 Bénéficiaires par bureau
+export const getBeneficiairesByBureau = (bureauId) => {
+  return axios.get(`${API_BASE_URL}/bureau/${bureauId}`);
 };
 
-// ===============================
-// 🔹 BENEFICIAIRES - Gestion complète
-// ===============================
+// 🔹 Bénéficiaires par département
+export const getBeneficiairesByDepartment = (departmentId) => {
+  return axios.get(`${API_BASE_URL}/department/${departmentId}`);
+};
 
+// 🔹 Bénéficiaires par service
+export const getBeneficiairesByService = (serviceId) => {
+  return axios.get(`${API_BASE_URL}/service/${serviceId}`);
+};
 
+// 🔹 Vérifier si un matricule existe
+export const checkMatriculeExists = (matricule) => {
+  return axios.get(`${API_BASE_URL}/exists/matricule/${matricule}`);
+};
+
+// 🔹 Récupérer un bénéficiaire par matricule
+export const getBeneficiaireByMatricule = (matricule) => {
+  return axios.get(`${API_BASE_URL}/matricule/${matricule}`);
+};
 
 export const checkBeneficiaireExists = async (id) => {
   try {
