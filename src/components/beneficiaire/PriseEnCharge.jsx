@@ -37,34 +37,37 @@ const PriseEnCharge = () => {
   const [selectedAchat, setSelectedAchat] = useState(null);
 
   // Fonction pour générer un acronyme
-  const generateAcronym = (text) => {
-    if (!text) return '';
-    if (text === 'N/A') return 'N/A';
-    
-    // Si le texte est déjà court (moins de 20 caractères), on le garde tel quel
-    if (text.length <= 20) return text;
-    
-    // Séparer les mots
-    const words = text.split(' ');
-    
-    // Si c'est une phrase avec plusieurs mots
-    if (words.length > 1) {
-      // Liste des mots à ignorer (articles, prépositions)
-      const ignoreWords = ['DE', 'DU', 'DES', 'LE', 'LA', 'LES', 'ET', 'À', 'AU', 'AUX', 'EN', 'POUR', 'PAR', 'SUR', 'DANS'];
-      
-      // Prendre la première lettre de chaque mot significatif
-      const acronym = words
-        .map(word => word.toUpperCase())
-        .filter(word => !ignoreWords.includes(word) && word.length > 1)
-        .map(word => word.charAt(0))
-        .join('.');
-      
-      return acronym + '.';
-    }
-    
-    // Si c'est un seul mot long, le tronquer
-    return text.substring(0, 15) + '...';
-  };
+const generateAcronym = (text) => {
+  if (!text) return '';
+  if (text === 'N/A') return 'N/A';
+
+  // Si court, on retourne tel quel
+  if (text.length <= 10) return text;
+
+  // Nettoyer caractères spéciaux sauf lettres et chiffres
+  const cleanedText = text.replace(/[\/\.\-_]/g, ' ');
+
+  // Séparer les mots
+  const words = cleanedText.split(/\s+/);
+
+  const ignoreWords = [
+    'DE', 'DU', 'DES', 'LE', 'LA', 'LES',
+    'ET', 'À', 'AU', 'AUX', 'EN',
+    'POUR', 'PAR', 'SUR', 'DANS'
+  ];
+
+  const acronym = words
+    .map(word => word.toUpperCase())
+    .filter(word => 
+      word.length > 1 &&
+      !ignoreWords.includes(word)
+    )
+    .map(word => word.charAt(0))
+    .join('.');
+
+  return acronym ? acronym + '.' : text.substring(0, 15) + '...';
+};
+
 
   // Charger la liste des achats pour le sélecteur
   useEffect(() => {
@@ -83,104 +86,159 @@ const PriseEnCharge = () => {
     loadAchats();
   }, []);
 
-  // Charger les données de l'achat sélectionné
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
+// Charger les données de l'achat sélectionné
+useEffect(() => {
+  const loadData = async () => {
+    try {
+      setLoading(true);
 
-        let currentAchatId = achatId;
+      let currentAchatId = achatId;
 
-        if (!currentAchatId) {
-          const allAchatsRes = await getAllAchats();
-          const allAchats = allAchatsRes.data || [];
+      if (!currentAchatId) {
+        const allAchatsRes = await getAllAchats();
+        const allAchats = allAchatsRes.data || [];
 
-          if (allAchats.length === 0) {
-            toast.warning("Aucun achat disponible");
-            setLoading(false);
-            return;
-          }
+        if (allAchats.length === 0) {
+          toast.warning("Aucun achat disponible");
+          setLoading(false);
+          return;
+        }
 
-          const firstAchat = allAchats[0];
-          currentAchatId = firstAchat.id;
-
-          setSelectedAchat(firstAchat);
-          setAchat(firstAchat);
-        } else {
+        const firstAchat = allAchats[0];
+        currentAchatId = firstAchat.id;
+        setSelectedAchat(firstAchat);
+        setAchat(firstAchat);
+      } else {
+        try {
           const achatRes = await getAchatById(currentAchatId);
           setAchat(achatRes.data);
           setSelectedAchat(achatRes.data);
+        } catch (error) {
+          console.error('Erreur chargement achat:', error);
+          toast.error('Erreur lors du chargement de l\'achat');
+          setLoading(false);
+          return;
         }
+      }
 
-        const priseEnChargeRes = await getPriseEnChargeByAchat(currentAchatId);
-        setPriseEnCharge(priseEnChargeRes.data || []);
+      // Récupérer la liste des bénéficiaires
+      const priseEnChargeRes = await getPriseEnChargeByAchat(currentAchatId);
+      const beneficiairesData = priseEnChargeRes.data || [];
+      
+      // Charger les matériels pour chaque bénéficiaire
+      const beneficiairesAvecMateriels = [];
+      const qrCodesMap = {};
 
-        // Générer les QR codes pour chaque bénéficiaire
-        const qrCodesMap = {};
-        for (const dto of priseEnChargeRes.data || []) {
-          if (dto.beneficiaire && dto.materiels) {
-            const numerosSerie = dto.materiels
-              .map(m => m.numeroSerie)
-              .filter(ns => ns && ns !== 'N/A');
+      for (const dto of beneficiairesData) {
+        if (dto.beneficiaire && dto.beneficiaire.id) {
+          try {
+            // Charger les matériels pour ce bénéficiaire
+            const materielsRes = await getMaterielsAttribuesParAchatEtBeneficiaire(
+              currentAchatId,
+              dto.beneficiaire.id
+            );
             
-            if (numerosSerie.length > 0) {
-              const qrData = JSON.stringify({
-                beneficiaire: `${dto.beneficiaire.nom} ${dto.beneficiaire.prenom}`,
-                matricule: dto.beneficiaire.matricule,
-                numerosSerie: numerosSerie,
-                total: numerosSerie.length
-              }, null, 2);
+            const beneficiaireAvecMateriels = {
+              ...dto,
+              beneficiaire: dto.beneficiaire,
+              materiels: materielsRes.data || []
+            };
+            
+            beneficiairesAvecMateriels.push(beneficiaireAvecMateriels);
+            
+            // Générer QR code si nécessaire
+            if (materielsRes.data && materielsRes.data.length > 0) {
+              const numerosSerie = materielsRes.data
+                .map(m => m.numeroSerie)
+                .filter(ns => ns && ns !== 'N/A');
               
-              try {
-                qrCodesMap[dto.beneficiaire.id] = await QRCode.toDataURL(qrData, {
-                  width: 120,
-                  margin: 1,
-                  color: {
-                    dark: '#000000',
-                    light: '#ffffff'
-                  }
-                });
-              } catch (error) {
-                console.error('Erreur génération QR code:', error);
+              if (numerosSerie.length > 0) {
+                const qrData = JSON.stringify({
+                  beneficiaire: `${dto.beneficiaire.nom} ${dto.beneficiaire.prenom}`,
+                  matricule: dto.beneficiaire.matricule,
+                  numerosSerie: numerosSerie,
+                  total: numerosSerie.length
+                }, null, 2);
+                
+                try {
+                  qrCodesMap[dto.beneficiaire.id] = await QRCode.toDataURL(qrData, {
+                    width: 120,
+                    margin: 1,
+                    color: {
+                      dark: '#000000',
+                      light: '#ffffff'
+                    }
+                  });
+                } catch (error) {
+                  console.error('Erreur génération QR code:', error);
+                }
               }
             }
+          } catch (error) {
+            console.error(`Erreur chargement matériels pour bénéficiaire ${dto.beneficiaire.id}:`, error);
+            beneficiairesAvecMateriels.push({
+              ...dto,
+              beneficiaire: dto.beneficiaire,
+              materiels: []
+            });
           }
+        } else {
+          beneficiairesAvecMateriels.push({
+            ...dto,
+            materiels: []
+          });
         }
-        setQrCodes(qrCodesMap);
-
-      } catch (error) {
-        console.error("Erreur chargement données:", error);
-        toast.error("Erreur lors du chargement des données");
-      } finally {
-        setLoading(false);
       }
-    };
+      
+      setPriseEnCharge(beneficiairesAvecMateriels);
+      setQrCodes(qrCodesMap);
 
+    } catch (error) {
+      console.error("Erreur chargement données:", error);
+      toast.error("Erreur lors du chargement des données");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (achatId || achats.length > 0) {
     loadData();
-  }, [achatId]);
+  }
+}, [achatId, achats]);
 
-  // Charger les matériels d'un bénéficiaire spécifique
-  useEffect(() => {
-    const loadMaterielsBeneficiaire = async () => {
-      if (!selectedBeneficiaire) {
-        setMaterielsBeneficiaire([]);
-        return;
-      }
+// Charger les matériels d'un bénéficiaire spécifique
+useEffect(() => {
+  const loadMaterielsBeneficiaire = async () => {
+    if (!selectedBeneficiaire || !selectedBeneficiaire.id) {
+      setMaterielsBeneficiaire([]);
+      return;
+    }
 
-      try {
-        const materielsRes = await getMaterielsAttribuesParAchatEtBeneficiaire(
-          achatId, 
-          selectedBeneficiaire.id
-        );
-        setMaterielsBeneficiaire(materielsRes.data || []);
-      } catch (error) {
-        console.error('Erreur chargement matériels:', error);
-        setMaterielsBeneficiaire([]);
-      }
-    };
+    // Utiliser l'achatId des paramètres ou celui de l'état selectedAchat
+    const currentAchatId = achatId || selectedAchat?.id;
+    
+    if (!currentAchatId) {
+      console.warn('Aucun achat sélectionné');
+      setMaterielsBeneficiaire([]);
+      return;
+    }
 
-    loadMaterielsBeneficiaire();
-  }, [selectedBeneficiaire, achatId]);
+    try {
+      console.log('Chargement matériels pour:', { currentAchatId, beneficiaireId: selectedBeneficiaire.id });
+      const materielsRes = await getMaterielsAttribuesParAchatEtBeneficiaire(
+        currentAchatId, 
+        selectedBeneficiaire.id
+      );
+      setMaterielsBeneficiaire(materielsRes.data || []);
+    } catch (error) {
+      console.error('Erreur chargement matériels:', error);
+      setMaterielsBeneficiaire([]);
+      toast.error('Erreur lors du chargement des matériels');
+    }
+  };
+
+  loadMaterielsBeneficiaire();
+}, [selectedBeneficiaire, achatId, selectedAchat]);
 
   // Fermer les dropdowns quand on clique ailleurs
   useEffect(() => {
@@ -261,88 +319,52 @@ const PriseEnCharge = () => {
   };
 
   // FONCTION DE TÉLÉCHARGEMENT PDF
-  const handleDownloadPDF = async () => {
-    const formsToPrint = getFormsToPrint();
-    if (!formsToPrint) return;
+const handleDownloadPDF = async () => {
+  const pdf = new jsPDF('l', 'mm', 'a4'); 
+  const forms = document.querySelectorAll('.prise-en-charge-form');
 
-    setDownloading(true);
-    toast.info('Génération du PDF en cours...');
+  for (let i = 0; i < forms.length; i++) {
+    const form = forms[i];
 
-    try {
-      // Créer un conteneur temporaire pour le PDF
-      const pdfContainer = document.createElement('div');
-      pdfContainer.style.position = 'absolute';
-      pdfContainer.style.left = '-9999px';
-      pdfContainer.style.top = '0';
-      pdfContainer.style.width = '297mm';
-      pdfContainer.style.backgroundColor = 'white';
-      pdfContainer.style.padding = '10mm';
-      pdfContainer.innerHTML = generatePrintHTML(formsToPrint, true);
-      document.body.appendChild(pdfContainer);
+    form.style.animation = 'none';
+    form.style.opacity = '1';
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    const canvas = await html2canvas(form, {
+      scale: 3, // Augmenté pour plus de netteté sur les textes fins
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff"
+    });
 
-      // Créer le PDF en orientation paysage
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
+    const imgData = canvas.toDataURL('image/jpeg', 1.0);
+    
+    const pdfWidth = 297;
+    const pdfHeight = 210;
+    const margin = 5; // Marge de sécurité
 
-      const forms = pdfContainer.querySelectorAll('.prise-en-charge-form');
-      
-      for (let i = 0; i < forms.length; i++) {
-        const form = forms[i];
-        form.style.width = '277mm';
-        form.style.height = 'auto';
-        form.style.overflow = 'visible';
-        
-        const canvas = await html2canvas(form, {
-          scale: 2.5,
-          backgroundColor: '#ffffff',
-          logging: false,
-          allowTaint: true,
-          useCORS: true,
-          windowWidth: 1200,
-          onclone: (clonedDoc) => {
-            const clonedForms = clonedDoc.querySelectorAll('.prise-en-charge-form');
-            clonedForms.forEach(f => {
-              f.style.width = '277mm';
-              f.style.margin = '0 auto';
-              f.style.border = '2px solid #000';
-            });
-          }
-        });
+    // 1. Calculer les dimensions pour que ça tienne en LARGEUR
+    let imgWidth = pdfWidth - (margin * 2);
+    let imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = 277;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-        if (i > 0) {
-          pdf.addPage();
-        }
-
-        pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight, undefined, 'FAST');
-      }
-
-      const beneficiaireName = selectedBeneficiaire 
-        ? `${selectedBeneficiaire.nom}_${selectedBeneficiaire.prenom}`
-        : selectedBeneficiaires.length > 0 
-          ? `${selectedBeneficiaires.length}_beneficiaires`
-          : 'tous_beneficiaires';
-      
-      pdf.save(`prise_en_charge_${beneficiaireName}_${new Date().toISOString().split('T')[0]}.pdf`);
-
-      document.body.removeChild(pdfContainer);
-      toast.success('PDF téléchargé avec succès!');
-    } catch (error) {
-      console.error('Erreur génération PDF:', error);
-      toast.error('Erreur lors de la génération du PDF');
-    } finally {
-      setDownloading(false);
+    // 2. CORRECTION : Si la hauteur dépasse la page, on réduit par rapport à la HAUTEUR
+    if (imgHeight > (pdfHeight - (margin * 2))) {
+      imgHeight = pdfHeight - (margin * 2);
+      imgWidth = (canvas.width * imgHeight) / canvas.height;
     }
-  };
 
+    if (i > 0) pdf.addPage('l', 'mm', 'a4');
+    
+    // Centrage parfait (Horizontal et Vertical)
+    const xOffset = (pdfWidth - imgWidth) / 2;
+    const yOffset = (pdfHeight - imgHeight) / 2;
+    
+    pdf.addImage(imgData, 'JPEG', xOffset, yOffset, imgWidth, imgHeight);
+  }
+
+  pdf.save('prise_en_charge_paysage.pdf');
+};
   // Fonction utilitaire pour obtenir les formulaires à imprimer/télécharger
   const getFormsToPrint = () => {
     if (selectedBeneficiaire) {
@@ -725,6 +747,17 @@ const PriseEnCharge = () => {
         border: 2px solid black !important;
       }
     }
+
+    * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.prise-en-charge-form {
+  box-shadow: none !important; /* Supprime toute ombre qui crée du flou */
+  border: 1px solid #000 !important; /* Utilisez des bordures fines et nettes */
+}
   `;
 
   const calculateTotalTTC = (materiels) => {
@@ -1055,34 +1088,36 @@ const PriseEnChargeForm = ({
     return materiel.prix?.prixUnitaireHT || materiel.prix?.prixUnitaire || 0;
   };
 
-  const generateAcronym = (text) => {
-    if (!text) return '';
-    if (text === 'N/A') return 'N/A';
-    
-    // Si le texte est déjà court (moins de 20 caractères), on le garde tel quel
-    if (text.length <= 20) return text;
-    
-    // Séparer les mots
-    const words = text.split(' ');
-    
-    // Si c'est une phrase avec plusieurs mots
-    if (words.length > 1) {
-      // Liste des mots à ignorer (articles, prépositions)
-      const ignoreWords = ['DE', 'DU', 'DES', 'LE', 'LA', 'LES', 'ET', 'À', 'AU', 'AUX', 'EN', 'POUR', 'PAR', 'SUR', 'DANS'];
-      
-      // Prendre la première lettre de chaque mot significatif
-      const acronym = words
-        .map(word => word.toUpperCase())
-        .filter(word => !ignoreWords.includes(word) && word.length > 1)
-        .map(word => word.charAt(0))
-        .join('.');
-      
-      return acronym + '.';
-    }
-    
-    // Si c'est un seul mot long, le tronquer
-    return text.substring(0, 15) + '...';
-  };
+const generateAcronym = (text) => {
+  if (!text) return '';
+  if (text === 'N/A') return 'N/A';
+
+  // Si court, on retourne tel quel
+  if (text.length <= 10) return text;
+
+  // Nettoyer caractères spéciaux sauf lettres et chiffres
+  const cleanedText = text.replace(/[\/\.\-_]/g, ' ');
+
+  // Séparer les mots
+  const words = cleanedText.split(/\s+/);
+
+  const ignoreWords = [
+    'DE', 'DU', 'DES', 'LE', 'LA', 'LES',
+    'ET', 'À', 'AU', 'AUX', 'EN',
+    'POUR', 'PAR', 'SUR', 'DANS'
+  ];
+
+  const acronym = words
+    .map(word => word.toUpperCase())
+    .filter(word => 
+      word.length > 1 &&
+      !ignoreWords.includes(word)
+    )
+    .map(word => word.charAt(0))
+    .join('.');
+
+  return acronym ? acronym + '.' : text.substring(0, 15) + '...';
+};
 
   return (
     <div className="prise-en-charge-form">
@@ -1162,7 +1197,7 @@ const PriseEnChargeForm = ({
 
       <table className="form-table">
         <thead>
-          <tr colspan="7" class="title">
+          <tr >
             <th className="col-inventaire">CODE INVENTAIRE</th>
             <th className="col-designation">DESIGNATION</th>
             <th className="col-serie">SERIE</th>

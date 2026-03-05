@@ -12,6 +12,7 @@ export const affecterConfigurationComplete = (dto) =>
 export const getMaterielsDisponiblesParPrix = (achatId) =>
   axios.get(`${API_BASE_URL}/materiels/achat/${achatId}/disponibles-par-prix`);
 
+
 // ===============================
 // 🔹 ACHATS
 // ===============================

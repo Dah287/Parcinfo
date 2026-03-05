@@ -18,12 +18,10 @@ import {
   FiMonitor,
   FiHardDrive,
   FiLayers,
-  FiCalendar ,
-  FiUserPlus  
+  FiCalendar // Ajout de l'icône pour l'exercice
 } from 'react-icons/fi';
 import {
   getAllMateriels,
-  attribuerMateriel ,
   getMaterielsDisponibles,
   getMaterielsAttribues,
   searchMateriels,
@@ -33,6 +31,7 @@ import {
 import { getAllBeneficiaires } from '../../services/beneficiareService';
 import { getAllAchats } from '../../services/achatService';
 import { getAllFournisseurs } from '../../services/fournisseurService';
+
 const MaterielsTable = () => {
   const [materiels, setMateriels] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -79,13 +78,6 @@ const MaterielsTable = () => {
   const [systemeSearch, setSystemeSearch] = useState('');
   const [exerciceSearch, setExerciceSearch] = useState(''); // Nouvelle recherche exercice
   
-// pour attribution
-const [showAttributionModal, setShowAttributionModal] = useState(false);
-const [selectedMaterielForAttribution, setSelectedMaterielForAttribution] = useState(null);
-const [selectedBeneficiaireForAttribution, setSelectedBeneficiaireForAttribution] = useState(null);
-const [attributionDate, setAttributionDate] = useState(new Date().toISOString().split('T')[0]);
-const [attributing, setAttributing] = useState(false);
-
   const [loadingFilters, setLoadingFilters] = useState(false);
 
   const etatOptions = [
@@ -337,48 +329,7 @@ const [attributing, setAttributing] = useState(false);
     setShowExerciceDropdown(false); // Reset dropdown exercice
     setActiveTab('all');
   };
-const handleAttributionClick = (e, materiel) => {
-  e.stopPropagation(); // Empêche l'expansion de la ligne
-  setSelectedMaterielForAttribution(materiel);
-  setSelectedBeneficiaireForAttribution(null);
-  setAttributionDate(new Date().toISOString().split('T')[0]);
-  setShowAttributionModal(true);
-};
 
-const handleAttribuer = async () => {
-  if (!selectedBeneficiaireForAttribution) {
-    alert('Veuillez sélectionner un bénéficiaire');
-    return;
-  }
-
-  try {
-    setAttributing(true);
-    
-    const dto = {
-      materielId: selectedMaterielForAttribution.id,
-      beneficiaireId: selectedBeneficiaireForAttribution.id,
-      dateAttribution: attributionDate
-    };
-
-    await attribuerMateriel(dto);
-    
-    // Rafraîchir la liste des matériels
-    const response = await getAllMateriels();
-    setMateriels(response.data || []);
-    
-    // Fermer la modal
-    setShowAttributionModal(false);
-    
-    // Afficher un message de succès (vous pouvez utiliser une toast notification ici)
-    alert('Matériel attribué avec succès');
-    
-  } catch (error) {
-    console.error('Erreur lors de l\'attribution:', error);
-    alert(error.response?.data?.message || 'Erreur lors de l\'attribution du matériel');
-  } finally {
-    setAttributing(false);
-  }
-};
   const getActiveFiltersCount = () => {
     let count = 0;
     if (selectedBeneficiaire) count++;
@@ -790,7 +741,6 @@ const handleAttribuer = async () => {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Inventaire</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Série</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Système</th>
-                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">N° Série Écran</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bénéficiaire</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">État</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -833,27 +783,16 @@ const handleAttribuer = async () => {
                       <td className="px-4 py-3 text-sm font-medium text-blue-600">{materiel.numeroInventaire || 'N/A'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{materiel.numeroSerie || 'N/A'}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{getSystemeExploitation(materiel)}</td>
-                       <td className="px-4 py-3 text-sm text-gray-600">{materiel.numeroSerieEcran || 'N/A'}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {materiel.beneficiaire ? `${materiel.beneficiaire.nom} ${materiel.beneficiaire.prenom}` : 'Non attribué'}
                       </td>
                       <td className="px-4 py-3">{getStatusBadge(materiel.etat)}</td>
-<td className="px-4 py-3">
-  <div className="flex space-x-2">
-    {/* Afficher le bouton d'attribution seulement si le matériel est DISPONIBLE */}
-    {materiel.etat === 'DISPONIBLE' && (
-      <button
-        onClick={(e) => handleAttributionClick(e, materiel)}
-        className="text-green-600 hover:text-green-900 p-1"
-        title="Attribuer ce matériel"
-      >
-        <FiUserPlus size={16} />
-      </button>
-    )}
-    <button className="text-blue-600 hover:text-blue-900 p-1"><FiEdit size={16} /></button>
-    <button className="text-red-600 hover:text-red-900 p-1"><FiTrash size={16} /></button>
-  </div>
-</td>
+                      <td className="px-4 py-3">
+                        <div className="flex space-x-2">
+                          <button className="text-blue-600 hover:text-blue-900 p-1"><FiEdit size={16} /></button>
+                          <button className="text-red-600 hover:text-red-900 p-1"><FiTrash size={16} /></button>
+                        </div>
+                      </td>
                     </tr>
                     {expandedRow === materiel.id && (
                       <tr className="bg-gray-50">
@@ -894,134 +833,6 @@ const handleAttribuer = async () => {
               )}
             </tbody>
           </table>
-{/* Modal d'attribution */}
-{showAttributionModal && selectedMaterielForAttribution && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <FiUserPlus className="text-green-600" />
-          Attribuer le matériel
-        </h3>
-        <button
-          onClick={() => setShowAttributionModal(false)}
-          className="text-gray-400 hover:text-gray-600"
-        >
-          <FiX size={20} />
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        {/* Détails du matériel */}
-        <div className="bg-gray-50 p-3 rounded-lg">
-          <p className="text-sm text-gray-600">Matériel à attribuer :</p>
-          <p className="font-medium text-gray-800">
-            {getType(selectedMaterielForAttribution)} - {getMarque(selectedMaterielForAttribution)}
-          </p>
-          <p className="text-xs text-gray-500">
-            N° Inventaire: {selectedMaterielForAttribution.numeroInventaire || 'N/A'} | 
-            N° Série: {selectedMaterielForAttribution.numeroSerie || 'N/A'}
-          </p>
-        </div>
-
-        {/* Sélection du bénéficiaire */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <FiUser className="text-purple-500" size={16} />
-            Bénéficiaire
-          </label>
-          <div className="relative">
-            <button
-              onClick={() => setShowBeneficiaireDropdown(!showBeneficiaireDropdown)}
-              className={`w-full p-3 border rounded-lg text-left flex justify-between items-center ${
-                selectedBeneficiaireForAttribution ? 'border-green-500 bg-green-50' : 'border-gray-300'
-              }`}
-            >
-              <span className="truncate">
-                {selectedBeneficiaireForAttribution
-                  ? `${selectedBeneficiaireForAttribution.nom} ${selectedBeneficiaireForAttribution.prenom}`
-                  : 'Sélectionner un bénéficiaire...'}
-              </span>
-              <FiChevronDown className={`transition-transform ${showBeneficiaireDropdown ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showBeneficiaireDropdown && (
-              <div className="absolute z-40 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                <div className="p-2 border-b sticky top-0 bg-white">
-                  <input
-                    type="text"
-                    value={beneficiaireSearch}
-                    onChange={(e) => setBeneficiaireSearch(e.target.value)}
-                    placeholder="Rechercher un bénéficiaire..."
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                  />
-                </div>
-                {filteredBeneficiaires.map(b => (
-                  <div
-                    key={b.id}
-                    onClick={() => {
-                      setSelectedBeneficiaireForAttribution(b);
-                      setShowBeneficiaireDropdown(false);
-                      setBeneficiaireSearch('');
-                    }}
-                    className={`px-4 py-2 hover:bg-green-50 cursor-pointer ${
-                      selectedBeneficiaireForAttribution?.id === b.id ? 'bg-green-50' : ''
-                    }`}
-                  >
-                    <p className="font-medium">{b.nom} {b.prenom}</p>
-                    <p className="text-xs text-gray-500">{b.matricule || 'N° matricule'}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Date d'attribution */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <FiCalendar className="text-purple-500" size={16} />
-            Date d'attribution
-          </label>
-          <input
-            type="date"
-            value={attributionDate}
-            onChange={(e) => setAttributionDate(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-          />
-        </div>
-
-        {/* Boutons d'action */}
-        <div className="flex gap-3 pt-4">
-          <button
-            onClick={handleAttribuer}
-            disabled={attributing || !selectedBeneficiaireForAttribution}
-            className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {attributing ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                Attribution...
-              </>
-            ) : (
-              <>
-                <FiCheck size={18} />
-                Confirmer l'attribution
-              </>
-            )}
-          </button>
-          <button
-            onClick={() => setShowAttributionModal(false)}
-            className="px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Annuler
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
         </div>
         {materiels.length > 0 && (
           <div className="p-4 border-t border-gray-200 flex justify-between items-center">

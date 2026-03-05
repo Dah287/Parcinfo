@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FiChevronDown, 
   FiChevronRight, 
@@ -47,33 +47,106 @@ import {
 import { FaFileExcel } from 'react-icons/fa';
 
 const Sidebar = () => {
-  const [openSections, setOpenSections] = useState({
-    achats: true,
-    materiels: true,
-    attributions: false,
-    fournisseurs: false,
-    beneficiaires: false,
-    rapports: false,
-    parametres: false
-  });
+  // ✅ Fonction pour récupérer l'état initial depuis localStorage
+  const getInitialOpenSections = () => {
+    if (typeof window === 'undefined') return null; // SSR safe
+    
+    const saved = localStorage.getItem('sidebarOpenSections');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // ✅ Validation : s'assurer que toutes les clés existent
+        return {
+          achats: parsed.achats ?? true,
+          materiels: parsed.materiels ?? true,
+          attributions: parsed.attributions ?? false,
+          fournisseurs: parsed.fournisseurs ?? false,
+          beneficiaires: parsed.beneficiaires ?? false,
+          rapports: parsed.rapports ?? false,
+          parametres: parsed.parametres ?? false
+        };
+      } catch (e) {
+        console.error('Erreur parsing sidebar state:', e);
+      }
+    }
+    // Valeurs par défaut
+    return {
+      achats: true,
+      materiels: true,
+      attributions: false,
+      fournisseurs: false,
+      beneficiaires: false,
+      rapports: false,
+      parametres: false
+    };
+  };
+
+  const [openSections, setOpenSections] = useState(getInitialOpenSections);
+
+  // ✅ Synchroniser si localStorage change dans un autre onglet
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'sidebarOpenSections' && e.newValue) {
+        try {
+          setOpenSections(JSON.parse(e.newValue));
+        } catch (err) {
+          console.error('Erreur sync localStorage:', err);
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // ✅ Sauvegarder dans localStorage à chaque changement
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarOpenSections', JSON.stringify(openSections));
+    }
+  }, [openSections]);
 
   const toggleSection = (section) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
+  // ✅ Fonction pour réinitialiser le sidebar
+  const resetSidebar = () => {
+    const defaults = {
+      achats: true,
+      materiels: true,
+      attributions: false,
+      fournisseurs: false,
+      beneficiaires: false,
+      rapports: false,
+      parametres: false
+    };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarOpenSections', JSON.stringify(defaults));
+    }
+    setOpenSections(defaults);
+  };
+
   return (
-    <div className="bg-gradient-to-b from-blue-900 to-blue-800 text-white h-screen w-61 fixed flex flex-col">
+    <div className="bg-gradient-to-b from-blue-900 to-blue-800 text-white h-screen w-62 fixed flex flex-col">
       {/* Header - Fixe */}
-      <div className="p-4 border-b border-blue-700 bg-blue-900 z-10 shrink-0">
+      <div className="p-4 border-b border-blue-700 bg-gradient-to-r from-blue-900 to-indigo-900 z-10 shrink-0">
         <div className="flex items-center">
-          <div className="bg-blue-600 w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-lg">
-            <FiPackage className="w-6 h-6 text-yellow-300" />
+          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-lg transform group-hover:scale-110 transition-all duration-300">
+            <svg className="w-6 h-6 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
           </div>
-          <h1 className="text-xl font-bold">GestionParcInfo</h1>
+          <div>
+            <h1 className="text-xl font-bold text-white flex items-center">
+              GestionParcInfo
+              <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">v1.9</span>
+            </h1>
+            <p className="text-xs text-blue-200">Gestion de parc informatique</p>
+          </div>
         </div>
       </div>
       
-      {/* Contenu Scrollable - Flex-1 pour prendre l'espace disponible */}
+      {/* Contenu Scrollable */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pt-6 custom-scrollbar">
         {/* Tableau de bord */}
         <div className="mb-2">
@@ -119,12 +192,6 @@ const Sidebar = () => {
                   <span className="ml-1">Prix Manuel</span>
                 </a>
               </li>
-              {/* <li>
-                <a href="/add-achat" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiFilePlus className="mr-2 text-green-300 group-hover:text-white" size={16} />
-                  <span className="ml-1">Nouvel achat</span>
-                </a>
-              </li> */}
               <li>
                 <a href="/achats/statistiques" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
                   <FiBarChart2 className="mr-2 text-purple-300 group-hover:text-white" size={16} />
@@ -157,6 +224,12 @@ const Sidebar = () => {
                 <a href="/preparation-affectation-materiel" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
                   <FiLayers className="mr-2 text-blue-200 group-hover:text-white" size={16} />
                   <span className="ml-1">Préparation Affectation</span>
+                </a>
+              </li>
+              <li>
+                <a href="/preparation-inventaire" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
+                  <FiLayers className="mr-2 text-blue-200 group-hover:text-white" size={16} />
+                  <span className="ml-1">Préparation Inventaire</span>
                 </a>
               </li>
               <li>
@@ -217,30 +290,7 @@ const Sidebar = () => {
                   <span className="ml-1">Prises en charge</span>
                 </a>
               </li>
-              <li>
-                <a href="/attributions/nouvelle" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiFilePlus className="mr-2 text-green-300 group-hover:text-white" size={16} />
-                  <span className="ml-1">Nouvelle attribution</span>
-                </a>
-              </li>
-              <li>
-                <a href="/attributions/historique" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiArchive className="mr-2 text-blue-200 group-hover:text-white" size={16} />
-                  <span className="ml-1">Historique</span>
-                </a>
-              </li>
-              <li>
-                <a href="/attributions/reaffecter" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiRefreshCw className="mr-2 text-yellow-300 group-hover:text-white" size={16} />
-                  <span className="ml-1">Réaffectation</span>
-                </a>
-              </li>
-              <li>
-                <a href="/attributions/liberer" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiFileMinus className="mr-2 text-orange-300 group-hover:text-white" size={16} />
-                  <span className="ml-1">Libération</span>
-                </a>
-              </li>
+
             </ul>
           )}
         </div>
@@ -263,7 +313,6 @@ const Sidebar = () => {
                   <span className="ml-1">Liste des fournisseurs</span>
                 </a>
               </li>
-
             </ul>
           )}
         </div>
@@ -280,24 +329,14 @@ const Sidebar = () => {
           </div>
           {openSections.beneficiaires && (
             <ul className="ml-6 mt-1 space-y-1">
+
               <li>
                 <a href="/gestion-beneficiaires" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiUsers className="mr-2 text-blue-200 group-hover:text-white" size={16} />
-                  <span className="ml-1">Liste des bénéficiaires</span>
-                </a>
-              </li>
-              <li>
-                <a href="/beneficiaires/ajouter" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
                   <FiUserPlus className="mr-2 text-green-300 group-hover:text-white" size={16} />
                   <span className="ml-1">Ajouter bénéficiaire</span>
                 </a>
               </li>
-              <li>
-                <a href="/beneficiaires/attributions" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiBriefcase className="mr-2 text-purple-300 group-hover:text-white" size={16} />
-                  <span className="ml-1">Attributions par bénéficiaire</span>
-                </a>
-              </li>
+
             </ul>
           )}
         </div>
@@ -332,12 +371,7 @@ const Sidebar = () => {
                   <span className="ml-1">Rapport financier</span>
                 </a>
               </li>
-              <li>
-                <a href="/rapports/attributions" className="flex items-center hover:bg-blue-700 p-2 rounded-lg transition-colors group">
-                  <FiTrendingUp className="mr-2 text-purple-300 group-hover:text-white" size={16} />
-                  <span className="ml-1">Statistiques d'attributions</span>
-                </a>
-              </li>
+
             </ul>
           )}
         </div>
@@ -395,7 +429,7 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Footer - Fixe en bas avec shrink-0 */}
+      {/* Footer - Fixe en bas */}
       <div className="p-4 border-t border-blue-700 bg-blue-900/90 shrink-0">
         <div className="text-xs text-blue-200 text-center">
           <p className="flex items-center justify-center">
@@ -403,6 +437,15 @@ const Sidebar = () => {
             GestionParcInfo v1.9
           </p>
           <p className="mt-1">© 2026 Tous droits réservés</p>
+          
+          {/* Bouton réinitialiser le menu */}
+          {/* <button 
+            onClick={resetSidebar}
+            className="text-xs text-blue-300 hover:text-white transition-colors mt-2 flex items-center justify-center w-full"
+            title="Réinitialiser le menu"
+          >
+            <FiRefreshCw className="mr-1" size={12} /> Réinitialiser le menu
+          </button> */}
         </div>
       </div>
 

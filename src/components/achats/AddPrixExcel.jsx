@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FiUpload, 
   FiFile, 
@@ -15,7 +15,14 @@ import {
   FiCpu,
   FiHardDrive,
   FiMonitor,
-  FiCheckCircle
+  FiCheckCircle,
+  FiServer,
+  FiFileText,
+  FiType,
+  FiMousePointer,
+  FiWifi,
+  FiCamera,
+  FiPhone
 } from 'react-icons/fi';
 import { 
   getAllAchats, 
@@ -37,11 +44,56 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
   const [showAchatDropdown, setShowAchatDropdown] = useState(false);
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+  
+  // Ref pour le conteneur principal
+  const containerRef = useRef(null);
+
+ // Liste complète des types de nature
+  const natureOptions = [
+    'Ordinateur',
+    'Ordinateur portable',
+    'Serveur',
+    'Imprimante',
+    'Scanner',
+    'Photocopieur',
+    'Onduleur',
+    'Disque dur externe',
+    'Disque SSD',
+    'Clavier',
+    'Souris',
+
+    'Routeur',
+    'Switch',
+
+    'Camera IP',
+    'Caméra de surveillance',
+
+    'Microphone',
+    'Webcam',
+
+    'Autre'
+  ];
+
+  // Fonction pour faire défiler vers le haut
+  const scrollToTop = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   // Charger la liste des achats
   useEffect(() => {
     fetchAchats();
   }, []);
+
+  // Effet pour défiler vers le haut quand successMessage change
+  useEffect(() => {
+    if (successMessage) {
+      scrollToTop();
+    }
+  }, [successMessage]);
 
   // Fonction sécurisée pour fermer le modal
   const handleClose = () => {
@@ -239,6 +291,7 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
   };
 
   const downloadTemplate = () => {
+    // Créer une feuille avec les données d'exemple
     const templateData = [
       [
         'Numéro Prix', 'Désignation', 'Nature', 'Type Imprimante', 'Marque',
@@ -247,7 +300,7 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
         'Système Exploitation', 'Unité', 'Quantité', 'Prix HT (DH)'
       ],
       [
-        'P001', 'Ordinateur portable Dell', 'Ordinateur', '', 'Dell',
+        'P001', 'Ordinateur portable Dell', 'Ordinateur portable', '', 'Dell',
         'Oui', 'Oui', '', '', 'Intel Core i7',
         '512GB SSD', '3.4 GHz', '16GB', '15.6"', 'Non',
         'Windows 11', 'U', '5', '1200.00'
@@ -269,14 +322,65 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(templateData);
 
+    // Ajouter une validation de données pour la colonne Nature (colonne C)
+    // Créer une liste de validation pour la colonne Nature (index 2 = colonne C)
+    const natureValidation = {
+      type: 'list',
+      allowBlank: true,
+      formula1: `"${natureOptions.join(',')}"`
+    };
+
+    // Appliquer la validation à toutes les cellules de la colonne Nature (sauf l'en-tête)
+    if (!ws['!dataValidation']) {
+      ws['!dataValidation'] = [];
+    }
+
+    // Appliquer la validation pour les lignes 2 à 1000 de la colonne C (index 2)
+    for (let row = 2; row <= 1000; row++) {
+      const cellRef = `C${row}`;
+      ws['!dataValidation'].push({
+        ...natureValidation,
+        sqref: cellRef
+      });
+    }
+
+    // Ajuster la largeur des colonnes
     ws['!cols'] = [
-      { wch: 15 }, { wch: 40 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 40 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
       { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
       { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
       { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 15 }
     ];
 
+    // Ajouter une feuille d'instructions avec la liste des natures
+    const instructionsData = [
+      ['INSTRUCTIONS POUR L\'IMPORTATION DES PRIX'],
+      [''],
+      ['1. Colonnes obligatoires :'],
+      ['   - Numéro Prix (doit être unique)'],
+      ['   - Désignation'],
+      ['   - Quantité (nombre)'],
+      ['   - Prix HT (nombre)'],
+      [''],
+      ['2. Colonne Nature :'],
+      ['   Utilisez la liste déroulante pour sélectionner une valeur parmi :'],
+      ...natureOptions.map(nature => [`   - ${nature}`]),
+      [''],
+      ['3. Colonnes Oui/Non :'],
+      ['   - Inventorié'],
+      ['   - Parc'],
+      ['   - Ecran Inventorié'],
+      ['   Valeurs acceptées : Oui, Non, True, False, 1, 0'],
+      [''],
+      ['4. Exemple de données :'],
+      ['   Voir la feuille "Modèle Prix" pour un exemple complet']
+    ];
+
     XLSX.utils.book_append_sheet(wb, ws, 'Modèle Prix');
+    
+    const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
+    wsInstructions['!cols'] = [{ wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
 
     const fileName = selectedAchat 
       ? `modele_prix_${selectedAchat.reference.replace(/[^a-z0-9]/gi, '_')}.xlsx`
@@ -292,17 +396,48 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
   };
 
   const getIconForNature = (nature) => {
-    if (!nature) return <FiLayers />;
+    if (!nature) return <FiLayers className="text-gray-500" />;
+
     const natureLower = nature.toLowerCase();
-    if (natureLower.includes('imprimante')) return <FiPrinter className="text-purple-500" />;
-    if (natureLower.includes('ordinateur') || natureLower.includes('pc')) return <FiCpu className="text-blue-500" />;
-    if (natureLower.includes('disque')) return <FiHardDrive className="text-green-500" />;
-    if (natureLower.includes('ecran') || natureLower.includes('moniteur')) return <FiMonitor className="text-indigo-500" />;
+
+    if (natureLower.includes('imprimante'))
+      return <FiPrinter className="text-purple-500" />;
+
+    if (natureLower.includes('ordinateur') || natureLower.includes('pc') || natureLower.includes('laptop'))
+      return <FiCpu className="text-blue-500" />;
+
+    if (natureLower.includes('serveur'))
+      return <FiServer className="text-red-500" />;
+
+    if (natureLower.includes('scanner'))
+      return <FiFileText className="text-orange-500" />;
+
+    if (natureLower.includes('disque') || natureLower.includes('ssd') || natureLower.includes('hdd'))
+      return <FiHardDrive className="text-green-500" />;
+
+    if (natureLower.includes('ecran') || natureLower.includes('moniteur'))
+      return <FiMonitor className="text-indigo-500" />;
+
+    if (natureLower.includes('clavier'))
+      return <FiType className="text-yellow-600" />;
+
+    if (natureLower.includes('souris'))
+      return <FiMousePointer className="text-pink-500" />;
+
+    if (natureLower.includes('routeur') || natureLower.includes('switch') || natureLower.includes('modem'))
+      return <FiWifi className="text-cyan-500" />;
+
+    if (natureLower.includes('camera') || natureLower.includes('caméra'))
+      return <FiCamera className="text-teal-500" />;
+
+    if (natureLower.includes('telephone') || natureLower.includes('téléphone'))
+      return <FiPhone className="text-emerald-500" />;
+
     return <FiLayers className="text-gray-500" />;
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-xl p-6 max-w-6xl mx-auto">
+    <div ref={containerRef} className="bg-white rounded-lg shadow-xl p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Importation Excel des prix</h2>
@@ -521,7 +656,7 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
               <span className="font-bold">2. Désignation</span> (texte)
             </div>
             <div className="bg-white p-2 rounded border text-xs">
-              <span className="font-bold">3. Nature</span> (texte)
+              <span className="font-bold">3. Nature</span> (liste déroulante dans le modèle)
             </div>
             <div className="bg-white p-2 rounded border text-xs">
               <span className="font-bold">4. Type Imprimante</span> (texte)
@@ -573,6 +708,19 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
             </div>
           </div>
         )}
+
+        {/* Liste des natures disponibles */}
+        <div className="mt-4">
+          <h4 className="font-medium text-yellow-800 mb-2">Types de nature disponibles :</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-2 bg-white rounded border">
+            {natureOptions.map((nature, index) => (
+              <div key={index} className="text-xs text-gray-700 flex items-center">
+                <FiCheck className="text-green-500 mr-1 flex-shrink-0" size={12} />
+                {nature}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Bouton d'aperçu */}

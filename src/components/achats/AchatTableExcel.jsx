@@ -21,7 +21,8 @@ import {
   FiUpload,
   FiFile,
   FiGrid,
-  FiMinusCircle
+  FiMinusCircle,
+  FiFolder // Ajout de l'icône pour l'exercice
 } from 'react-icons/fi';
 import { 
   getAllAchats, 
@@ -54,7 +55,8 @@ const AchatTableExcel = () => {
     tauxTva: '20',
     type: 'MARCHE',
     observations: '',
-    fournisseurId: ''
+    fournisseurId: '',
+    exercice: new Date().getFullYear().toString() // Ajout du champ exercice avec l'année courante par défaut
   });
   
   const [fournisseurs, setFournisseurs] = useState([]);
@@ -189,7 +191,8 @@ const AchatTableExcel = () => {
       tauxTva: '20',
       type: 'MARCHE',
       observations: '',
-      fournisseurId: ''
+      fournisseurId: '',
+      exercice: new Date().getFullYear().toString() // Année courante par défaut
     });
     setShowModal(true);
   };
@@ -203,7 +206,8 @@ const AchatTableExcel = () => {
       tauxTva: achat.tauxTva?.toString() || '20',
       type: achat.type || 'MARCHE',
       observations: achat.observations || '',
-      fournisseurId: achat.fournisseur?.id?.toString() || ''
+      fournisseurId: achat.fournisseur?.id?.toString() || '',
+      exercice: achat.exercice?.toString() || new Date().getFullYear().toString() // Récupération de l'exercice existant
     });
     setShowModal(true);
   };
@@ -211,17 +215,18 @@ const AchatTableExcel = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (!formData.reference || !formData.fournisseurId) {
-        alert('Veuillez remplir tous les champs obligatoires');
+      if (!formData.reference || !formData.fournisseurId || !formData.exercice) {
+        alert('Veuillez remplir tous les champs obligatoires (référence, fournisseur, exercice)');
         return;
       }
 
       const achatData = {
         ...formData,
         tauxTva: parseFloat(formData.tauxTva),
-        fournisseurId: parseInt(formData.fournisseurId)
+        fournisseurId: parseInt(formData.fournisseurId),
+        exercice: parseInt(formData.exercice) // Conversion en nombre
       };
-
+console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
       if (isEditMode && currentAchat) {
         await updateAchat(currentAchat.id, achatData);
         alert('Achat mis à jour avec succès');
@@ -281,6 +286,16 @@ const AchatTableExcel = () => {
     );
   };
 
+  // Fonction pour générer les options d'exercice (5 dernières années)
+  const getExerciceOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = 0; i < 10; i++) { // 10 ans en arrière
+      years.push(currentYear - i);
+    }
+    return years.sort((a, b) => b - a); // Tri décroissant
+  };
+
   if (loading) return (
     <div className="flex justify-center items-center h-64">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -299,7 +314,7 @@ const AchatTableExcel = () => {
   return (
     <div className="p-4">
       {/* Header avec statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg shadow-sm">
           <div className="flex items-center">
             <FiFileText className="text-blue-500 text-3xl mr-3" />
@@ -343,6 +358,19 @@ const AchatTableExcel = () => {
               <p className="text-sm text-gray-600 font-medium">Achats sans prix</p>
               <p className="text-2xl font-bold text-gray-800">
                 {achats.filter(a => getNombrePrix(a.id) === 0).length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Nouvelle statistique pour l'exercice */}
+        <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-lg shadow-sm">
+          <div className="flex items-center">
+            <FiFolder className="text-indigo-500 text-3xl mr-3" />
+            <div>
+              <p className="text-sm text-gray-600 font-medium">Exercice courant</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {new Date().getFullYear()}
               </p>
             </div>
           </div>
@@ -416,7 +444,9 @@ const AchatTableExcel = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+              
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exercice</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</th>
@@ -428,7 +458,7 @@ const AchatTableExcel = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {achats.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center">
                       <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mb-3">
                         <FiFileText size={32} className="text-gray-400" />
@@ -442,8 +472,17 @@ const AchatTableExcel = () => {
                 achats.map(achat => (
                   <React.Fragment key={achat.id}>
                     <tr className="hover:bg-gray-50 transition-colors">
+
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="text-sm font-mono font-medium text-blue-600">{achat.reference || 'N/A'}</div>
+                      </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <FiFolder className="mr-1 text-indigo-500" size={14} />
+                          <span className="text-sm font-medium text-gray-900">
+                            {achat.exercice || new Date().getFullYear()}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
@@ -503,12 +542,14 @@ const AchatTableExcel = () => {
                     {/* Ligne détaillée avec prix */}
                     {expandedRow === achat.id && (
                       <tr className="bg-gray-50">
-                        <td colSpan="7" className="px-6 py-4">
+                        <td colSpan="8" className="px-6 py-4">
                           <div className="space-y-4">
                             <div className="flex justify-between items-start">
                               <div>
                                 <h4 className="font-semibold text-gray-700 text-lg">Détails de l'achat</h4>
-                                <p className="text-sm text-gray-500 mt-1">{achat.observations || 'Aucune observation'}</p>
+                                <p className="text-sm text-gray-500 mt-1">
+                                  Exercice: {achat.exercice || new Date().getFullYear()} - {achat.observations || 'Aucune observation'}
+                                </p>
                               </div>
                               <button
                                 onClick={() => setExpandedRow(null)}
@@ -612,6 +653,26 @@ const AchatTableExcel = () => {
                       </div>
                     </div>
 
+                    {/* Nouveau champ Exercice */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Exercice * <span className="text-xs text-gray-500">(Année)</span>
+                      </label>
+                      <select
+                        value={formData.exercice}
+                        onChange={(e) => setFormData({ ...formData, exercice: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">-- Sélectionnez l'exercice --</option>
+                        {getExerciceOptions().map(year => (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Date *
@@ -708,17 +769,14 @@ const AchatTableExcel = () => {
                 </div>
 
                 {/* Résumé */}
-               
-                 
-                  <div className="grid grid-cols-1 gap-2">
-
-                    <div>
-                      <span className="text-sm text-gray-600">Prochaine étape:</span>
-                      <div className="font-medium">
-                        Ajouter les prix après création
-                      </div>
+                <div className="grid grid-cols-1 gap-2">
+                  <div>
+                    <span className="text-sm text-gray-600">Prochaine étape:</span>
+                    <div className="font-medium">
+                      Ajouter les prix après création
                     </div>
                   </div>
+                </div>
           
               </div>
 

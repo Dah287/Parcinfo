@@ -1094,3 +1094,21 @@
   text-transform: uppercase;
   text-align: center;
 }
+
+/* Mode spécifique pour la capture PDF */
+.landscape-mode-pdf {
+    max-width: 100% !important;
+    width: 1000px !important; /* Largeur optimale pour le ratio paysage */
+}
+
+/* Force l'opacité à 100% pendant la capture */
+.prise-en-charge-form {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+@media print {
+    @page {
+        size: landscape;
+    }
+}

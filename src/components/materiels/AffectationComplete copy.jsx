@@ -32,10 +32,6 @@ const AffectationComplete = () => {
   const [achatSearch, setAchatSearch] = useState('');
   const [beneficiaireSearch, setBeneficiaireSearch] = useState('');
 
-// === NOUVEAUX ÉTATS (à ajouter avec les autres useState) ===
-const [showSuccess, setShowSuccess] = useState(false);
-const [lastAttribution, setLastAttribution] = useState(null);
-
   // === CHARGEMENT INITIAL ===
   useEffect(() => {
     const loadData = async () => {
@@ -184,83 +180,54 @@ const loadMaterielsParPrix = async () => {
   const clearAllSelections = () => setSelectedMateriels({});
 
   // === SOUMISSION ===
-// ✅ Fonction utilitaire à définir EN DEHORS de handleSubmit (en haut du composant)
-const scrollToTop = () => {
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
-  document.body.scrollTo({ top: 0, behavior: 'smooth' });
-  
-  setTimeout(() => {
-    if (window.scrollY > 0 || document.documentElement.scrollTop > 0) {
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    }
-  }, 300);
-};
-
-// === SOUMISSION ===
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  const selectedIds = Object.values(selectedMateriels).map(m => m.id);
-  
-  if (selectedIds.length === 0) {
-    toast.warning('Aucun matériel sélectionné. Voulez-vous continuer sans attribution ?');
-  }
-
-  if (!selectedBeneficiaire) {
-    toast.warning('Veuillez sélectionner un bénéficiaire');
-    return;
-  }
-
-  try {
-    setLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     
-    const dto = {
-      achatId: selectedAchat.id,
-      beneficiaireId: selectedBeneficiaire.id,
-      materielIds: selectedIds,
-      dateAttribution: dateAttribution,
-      observations: observations
-    };
-
-    const response = await affecterConfigurationComplete(dto);
+    // ✅ NOUVEAU : Aucun matériel sélectionné → avertissement mais pas blocage
+    const selectedIds = Object.values(selectedMateriels).map(m => m.id);
     
-    if (response.data?.success) {
-      // ✅ Sauvegarder les infos pour l'affichage de succès
-      setLastAttribution({
-        beneficiaire: selectedBeneficiaire,
-        achat: selectedAchat,
-        materielsCount: selectedIds.length,
-        date: dateAttribution
-      });
-      
-      toast.success(response.data.message || 'Attribution effectuée avec succès !');
-      
-      // Recharger les matériels disponibles
-      await loadMaterielsParPrix();
-      
-      // Réinitialiser sélections
-      setSelectedMateriels({});
-      setObservations('');
-      
-      // ✅ Afficher le panneau de succès
-      setShowSuccess(true);
-      
-      // 🚀 APPELER la fonction de scroll (c'était ça qui manquait !)
-      scrollToTop();
-      
-      // Optionnel : masquer automatiquement le panneau après 5 secondes
-      // setTimeout(() => setShowSuccess(false), 5000);
+    if (selectedIds.length === 0) {
+      toast.warning('Aucun matériel sélectionné. Voulez-vous continuer sans attribution ?');
+      // Option : return; si vous voulez bloquer quand même
+      // Pour l'instant, on laisse passer avec un warning
     }
-  } catch (error) {
-    console.error('Erreur attribution:', error);
-    toast.error(error.response?.data?.message || 'Erreur lors de l\'attribution');
-  } finally {
-    setLoading(false);
-  }
-};
+
+    if (!selectedBeneficiaire) {
+      toast.warning('Veuillez sélectionner un bénéficiaire');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const dto = {
+        achatId: selectedAchat.id,
+        beneficiaireId: selectedBeneficiaire.id,
+        materielIds: selectedIds, // Peut être vide
+        dateAttribution: dateAttribution,
+        observations: observations
+      };
+
+      const response = await affecterConfigurationComplete(dto);
+      
+      if (response.data?.success) {
+        toast.success(response.data.message || 'Attribution effectuée avec succès !');
+        
+        // Recharger les matériels disponibles
+        await loadMaterielsParPrix();
+        
+        // Réinitialiser sélections (mais garder achat et bénéficiaire pour enchaîner)
+        setSelectedMateriels({});
+        setObservations('');
+      }
+    } catch (error) {
+      console.error('Erreur attribution:', error);
+      toast.error(error.response?.data?.message || 'Erreur lors de l\'attribution');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // === RESET ===
   const resetForm = () => {
     setSelectedAchat(null);
@@ -312,69 +279,7 @@ const handleSubmit = async (e) => {
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* ✅ PANNEAU DE SUCCÈS */}
-{showSuccess && lastAttribution && (
-  <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-start animate-fade-in">
-    <div className="bg-green-100 p-2 rounded-full mr-3 flex-shrink-0">
-      <FiCheck className="text-green-600 text-xl" />
-    </div>
-    <div className="flex-1">
-      <h4 className="font-semibold text-green-800">✓ Attribution réussie !</h4>
-      <div className="text-sm text-green-700 mt-1 space-y-1">
-        <p>
-          <span className="font-medium">Bénéficiaire :</span> {lastAttribution.beneficiaire.nom} {lastAttribution.beneficiaire.prenom}
-          {lastAttribution.beneficiaire.matricule && ` • Mat: ${lastAttribution.beneficiaire.matricule}`}
-        </p>
-        <p>
-          <span className="font-medium">Achat :</span> #{lastAttribution.achat.numeroAchat || lastAttribution.achat.id} • {formatFournisseur(lastAttribution.achat)}
-        </p>
-        <p>
-          <span className="font-medium">Matériels attribués :</span> {lastAttribution.materielsCount} • <span className="font-medium">Date :</span> {lastAttribution.date}
-        </p>
-      </div>
-      
-      {/* Boutons d'action post-succès */}
-      <div className="flex gap-3 mt-4">
-        <button 
-          type="button"
-          onClick={() => {
-            setShowSuccess(false);
-            resetForm(); // Tout réinitialiser pour une nouvelle attribution
-          }} 
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
-        >
-          Nouvelle attribution
-        </button>
-        <button 
-          type="button"
-          onClick={() => {
-            setShowSuccess(false);
-            // Garder achat et bénéficiaire pour enchaîner les attributions
-            clearAllSelections();
-            setObservations('');
-          }} 
-          className="px-4 py-2 border border-green-300 text-green-700 rounded-lg hover:bg-green-100 text-sm font-medium transition-colors"
-        >
-          Continuer avec les mêmes sélections
-        </button>
-        <button 
-          type="button"
-          onClick={() => setShowSuccess(false)} 
-          className="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm font-medium"
-        >
-          Fermer
-        </button>
-      </div>
-    </div>
-    <button 
-      type="button"
-      onClick={() => setShowSuccess(false)} 
-      className="text-gray-400 hover:text-gray-600 ml-2"
-    >
-      <FiX size={20} />
-    </button>
-  </div>
-)}
+          
           {/* 1. Sélection Achat */}
           <div className="mb-6">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
@@ -492,7 +397,7 @@ const handleSubmit = async (e) => {
             {/* Badge prix */}
             <div className="bg-indigo-100 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-indigo-700 font-bold text-sm">
-             
+                {prixValue || 'N/A'}
               </span>
             </div>
             

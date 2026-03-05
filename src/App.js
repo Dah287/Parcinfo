@@ -21,6 +21,7 @@ import PriseEnCharge from "./components/beneficiaire/PriseEnCharge";
 import PreparationAffectationMateriel from "./components/achats/PreparationMateriels";
 import PreparationMateriels from "./components/achats/PreparationMateriels";
 import GestionBeneficiaires from "./components/beneficiaire/GestionBeneficiaires";
+import PreparationInventaire from "./components/BPI/PreparationInventaire";
 
 function App() {
   return (
@@ -48,10 +49,11 @@ function App() {
                    <Route path="/AffectationComplete" element={<AffectationComplete/>} />
                      <Route path="/ConsultationPrixAchat" element={<ConsultationPrixAchat />} />
                       <Route path="/attributions/PrisesEnChargeAchat" element={<PrisesEnChargeAchat />} />
-                      {/* <Route path="/prise-en-charge/:achatId" element={<PriseEnCharge />} /> */}
+                      <Route path="/prise-en-charge/:achatId" element={<PriseEnCharge />} />
                       <Route path="/prise-en-charge" element={<PriseEnCharge />} />
                        <Route path="/preparation-affectation-materiel" element={<PreparationMateriels />} />
                         <Route path="/gestion-beneficiaires" element={<GestionBeneficiaires />} />
+                        <Route path="/preparation-inventaire" element={<PreparationInventaire/>} />
             </Routes>
           </main>
         </div>

@@ -1,18 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FiUpload,
-  FiDownload,
-  FiCheck,
-  FiX,
-  FiAlertCircle,
-  FiPackage,
-  FiShoppingCart,
-  FiSave,
-  FiChevronDown,
-  FiChevronUp,
-  FiSearch,
-  FiTruck,
-  FiCalendar
+  FiUpload, FiDownload, FiCheck, FiX, FiAlertCircle,
+  FiPackage, FiShoppingCart, FiSave, FiChevronDown, FiChevronUp,
+  FiSearch, FiTruck, FiCalendar, FiMonitor, FiEdit2
 } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import { getAllAchats, getPrixByAchat } from '../../services/achatService';
@@ -23,102 +13,114 @@ import {
 import { toast } from 'react-toastify';
 
 const PreparationMateriels = ({ onComplete }) => {
-  // États pour la sélection d'achat
+  // === ÉTATS ===
   const [achats, setAchats] = useState([]);
   const [selectedAchat, setSelectedAchat] = useState(null);
   const [showAchatDropdown, setShowAchatDropdown] = useState(false);
   const [achatSearchTerm, setAchatSearchTerm] = useState('');
   const [loadingAchats, setLoadingAchats] = useState(true);
 
-  // États pour les prix
   const [prixList, setPrixList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [expandedPrix, setExpandedPrix] = useState(null);
+  
+  
+  // Matériels par prix : { [prixId]: Material[] }
   const [materielsData, setMaterielsData] = useState({});
+  
+  // Édition inline : { [`${prixId}_${materielId}`]: { numeroSerie, numeroSerieEcran } }
+  const [editingSerials, setEditingSerials] = useState({});
+  
+  // Import Excel
   const [importData, setImportData] = useState({});
   const [importErrors, setImportErrors] = useState({});
   const [showImportPreview, setShowImportPreview] = useState({});
 
-  // Charger la liste des achats au montage
-  useEffect(() => {
-    loadAchats();
-  }, []);
+
+  const [loadingMateriels, setLoadingMateriels] = useState(false);
+  // === CHARGEMENT INITIAL ===
+  useEffect(() => { loadAchats(); }, []);
 
   const loadAchats = async () => {
     try {
       setLoadingAchats(true);
       const response = await getAllAchats();
-      setAchats(response.data || []);
+      setAchats(response.data?.filter(a => a.statut !== 'ANNULE') || []);
     } catch (error) {
-      toast.error('Erreur lors du chargement des achats');
-      console.error(error);
+      toast.error('Erreur chargement des achats');
     } finally {
       setLoadingAchats(false);
     }
   };
 
-  // Charger les prix d'un achat sélectionné
-  const handleAchatSelect = async (achat) => {
-    setSelectedAchat(achat);
-    setShowAchatDropdown(false);
-    setAchatSearchTerm('');
+  // === SÉLECTION ACHAT ===
+// Ajouter un nouvel état pour le chargement global des matériels
 
-    try {
-      setLoading(true);
-      const response = await getPrixByAchat(achat.id);
-      const prix = response.data || [];
-      setPrixList(prix);
-      
-      // Initialiser les états pour chaque prix
-      const initialData = {};
-      prix.forEach(p => {
-        initialData[p.id] = [];
-      });
-      setMaterielsData(initialData);
-      setImportData(initialData);
-      setImportErrors(initialData);
-      setShowImportPreview(initialData);
-      
-      toast.success(`${prix.length} prix chargés pour l'achat ${achat.reference}`);
-      
-    } catch (error) {
-      toast.error('Erreur lors du chargement des prix');
-      console.error(error);
-    } finally {
-      setLoading(false);
+// Dans handleAchatSelect, après avoir récupéré les prix :
+const handleAchatSelect = async (achat) => {
+  setSelectedAchat(achat);
+  setShowAchatDropdown(false);
+  setAchatSearchTerm('');
+
+  try {
+    setLoading(true);
+    const response = await getPrixByAchat(achat.id);
+    const prix = response.data || [];
+    setPrixList(prix);
+    
+    // Initialiser les états
+    const init = {};
+    prix.forEach(p => { init[p.id] = []; });
+    setMaterielsData(init);
+    setImportData(init);
+    setImportErrors(init);
+    setShowImportPreview(init);
+    setEditingSerials({});
+    
+    toast.success(`${prix.length} prix chargés`);
+
+    // Charger les matériels pour tous les prix (si prix non vide)
+    if (prix.length > 0) {
+      setLoadingMateriels(true);
+      try {
+        const promises = prix.map(p => getMaterielsByPrix(p.id));
+        const results = await Promise.all(promises);
+        const newMaterielsData = {};
+        prix.forEach((p, index) => {
+          newMaterielsData[p.id] = results[index].data || [];
+        });
+        setMaterielsData(newMaterielsData);
+      } catch (error) {
+        toast.error('Erreur lors du chargement des matériels');
+      } finally {
+        setLoadingMateriels(false);
+      }
     }
-  };
 
-  // Filtrer les achats
-  const filteredAchats = achats.filter(achat => {
-    const searchLower = achatSearchTerm.toLowerCase();
-    return (
-      achat.reference?.toLowerCase().includes(searchLower) ||
-      achat.fournisseur?.nom?.toLowerCase().includes(searchLower)
-    );
+  } catch (error) {
+    toast.error('Erreur chargement des prix');
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // === FILTRES ===
+  const filteredAchats = achats.filter(a => {
+    const s = achatSearchTerm.toLowerCase();
+    return a.reference?.toLowerCase().includes(s) || a.fournisseur?.nom?.toLowerCase().includes(s);
   });
 
-  // Formater la date
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('fr-FR');
-  };
+  const formatDate = (date) => date ? new Date(date).toLocaleDateString('fr-FR') : '';
 
-  // Charger les matériels pour un prix
+  // === CHARGEMENT MATÉRIELS POUR UN PRIX ===
   const loadMaterielsForPrix = async (prixId) => {
     try {
       const response = await getMaterielsByPrix(prixId);
-      setMaterielsData(prev => ({
-        ...prev,
-        [prixId]: response.data || []
-      }));
+      setMaterielsData(prev => ({ ...prev, [prixId]: response.data || [] }));
     } catch (error) {
       console.error('Erreur chargement matériels:', error);
-      setMaterielsData(prev => ({
-        ...prev,
-        [prixId]: []
-      }));
+      setMaterielsData(prev => ({ ...prev, [prixId]: [] }));
     }
   };
 
@@ -127,47 +129,71 @@ const PreparationMateriels = ({ onComplete }) => {
       setExpandedPrix(null);
     } else {
       setExpandedPrix(prixId);
-      if (!materielsData[prixId] || materielsData[prixId].length === 0) {
+      if (!materielsData[prixId]?.length) {
         loadMaterielsForPrix(prixId);
       }
     }
   };
 
-  // Télécharger le modèle Excel
+  // === GESTION ÉDITION INLINE ===
+  const handleSerialChange = (prixId, materielId, field, value) => {
+    const key = `${prixId}_${materielId}`;
+    setEditingSerials(prev => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || {}),
+        [field]: value.trim().toUpperCase()
+      }
+    }));
+  };
+
+  const isModified = (prixId, materiel, field) => {
+    const key = `${prixId}_${materiel.id}`;
+    const edited = editingSerials[key]?.[field];
+    const original = materiel[field];
+    return edited !== undefined && edited !== original;
+  };
+
+  const getDisplayValue = (prixId, materiel, field) => {
+    const key = `${prixId}_${materiel.id}`;
+    return editingSerials[key]?.[field] ?? materiel[field] ?? '';
+  };
+
+  // === TEMPLATE EXCEL (sans N° Inventaire) ===
   const downloadTemplate = (prix) => {
+    const hasEcran = prix.nature?.toLowerCase().includes('ordinateur') || prix.ecran;
     const template = [];
     
     for (let i = 0; i < prix.quantite; i++) {
-      template.push({
+      const row = {
         'N° Prix': prix.numeroPrix,
         'Désignation': prix.designation,
-        'N° Série': '',
-        "N° d'Inventaire": '',
+        'Nature': prix.nature || '',
+        'N° Série Matériel': '',  // À remplir
         'Marque': prix.marque || '',
         'Modèle': prix.designation || '',
         'Caractéristiques': `${prix.processeur || ''} ${prix.ram || ''} ${prix.disque || ''}`.trim(),
-        'Observations': ''
-      });
+      };
+      if (hasEcran) {
+        row['N° Série Écran'] = '';  // À remplir si écran
+      }
+      row['Observations'] = '';
+      template.push(row);
     }
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(template);
-    
-    const colWidths = [
-      { wch: 15 }, { wch: 40 }, { wch: 20 }, { wch: 20 }, 
-      { wch: 15 }, { wch: 30 }, { wch: 40 }, { wch: 30 }
+    ws['!cols'] = [
+      { wch: 15 }, { wch: 40 }, { wch: 20 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 40 },
+      ...(hasEcran ? [{ wch: 20 }] : []),
+      { wch: 30 }
     ];
-    ws['!cols'] = colWidths;
-
     XLSX.utils.book_append_sheet(wb, ws, 'Matériels');
-    
-    const fileName = `preparation_${prix.numeroPrix}_${prix.designation.substring(0, 20).replace(/[^a-z0-9]/gi, '_')}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    
-    toast.success('Modèle Excel téléchargé');
+    XLSX.writeFile(wb, `preparation_${prix.numeroPrix}.xlsx`);
+    toast.success('Template téléchargé');
   };
 
-  // Importer le fichier Excel
+  // === IMPORT EXCEL ===
   const handleFileImport = (event, prix) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -176,518 +202,433 @@ const PreparationMateriels = ({ onComplete }) => {
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        const wb = XLSX.read(data, { type: 'array' });
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 
-        const errors = [];
-        const validData = [];
+        const errors = [], validData = [];
+        const serieMap = new Map(), ecranMap = new Map();
+        const hasEcran = prix.nature?.toLowerCase().includes('ordinateur') || prix.ecran;
 
-        const seriesMap = new Map();
-        const inventaireMap = new Map();
-
-        jsonData.forEach((row, index) => {
+        json.forEach((row, idx) => {
+          const ligne = idx + 2;
+          const numeroSerie = row['N° Série Matériel']?.toString().trim();
+          const numeroSerieEcran = hasEcran ? row['N° Série Écran']?.toString().trim() : null;
+          
           const lineErrors = [];
-          const ligneNum = index + 2;
           
-          const numeroSerie = row['N° Série']?.toString().trim() || '';
-          const numeroInventaire = row["N° d'Inventaire"]?.toString().trim() || '';
+          // N° Série matériel obligatoire
+          if (!numeroSerie) {
+            lineErrors.push('N° Série Matériel requis');
+          }
           
-          if (!numeroSerie && !numeroInventaire) {
-            lineErrors.push('Au moins un numéro (série ou inventaire) est requis');
+          // Vérifier doublons série matériel
+          if (numeroSerie && serieMap.has(numeroSerie)) {
+            lineErrors.push(`Série matériel "${numeroSerie}" en double (ligne ${serieMap.get(numeroSerie)})`);
+          } else if (numeroSerie) {
+            serieMap.set(numeroSerie, ligne);
           }
-
-          if (numeroSerie) {
-            if (seriesMap.has(numeroSerie)) {
-              lineErrors.push(`Numéro de série "${numeroSerie}" en double (ligne ${seriesMap.get(numeroSerie)})`);
+          
+          // Vérifier doublons série écran (si applicable)
+          if (hasEcran && numeroSerieEcran) {
+            if (ecranMap.has(numeroSerieEcran)) {
+              lineErrors.push(`Série écran "${numeroSerieEcran}" en double (ligne ${ecranMap.get(numeroSerieEcran)})`);
             } else {
-              seriesMap.set(numeroSerie, ligneNum);
-            }
-          }
-
-          if (numeroInventaire) {
-            if (inventaireMap.has(numeroInventaire)) {
-              lineErrors.push(`Numéro d'inventaire "${numeroInventaire}" en double (ligne ${inventaireMap.get(numeroInventaire)})`);
-            } else {
-              inventaireMap.set(numeroInventaire, ligneNum);
+              ecranMap.set(numeroSerieEcran, ligne);
             }
           }
 
           if (lineErrors.length > 0) {
-            errors.push({
-              ligne: ligneNum,
-              erreurs: lineErrors,
-              data: row
-            });
+            errors.push({ ligne, erreurs: lineErrors, data: row });
           } else {
             validData.push({
               numeroSerie: numeroSerie || null,
-              numeroInventaire: numeroInventaire || null,
+              numeroSerieEcran: hasEcran ? (numeroSerieEcran || null) : null,
               observations: row['Observations']?.toString().trim() || null,
               prixId: prix.id
             });
           }
         });
 
+        // Vérifier quantité
         if (validData.length !== prix.quantite) {
-          errors.push({
-            ligne: 0,
-            erreurs: [`Le nombre de lignes (${validData.length}) ne correspond pas à la quantité attendue (${prix.quantite})`]
-          });
+          errors.push({ ligne: 0, erreurs: [`Quantité attendue: ${prix.quantite}, trouvée: ${validData.length}`] });
         }
 
-        setImportData(prev => ({
-          ...prev,
-          [prix.id]: validData
-        }));
-        
-        setImportErrors(prev => ({
-          ...prev,
-          [prix.id]: errors
-        }));
-        
-        setShowImportPreview(prev => ({
-          ...prev,
-          [prix.id]: true
-        }));
+        setImportData(prev => ({ ...prev, [prix.id]: validData }));
+        setImportErrors(prev => ({ ...prev, [prix.id]: errors }));
+        setShowImportPreview(prev => ({ ...prev, [prix.id]: true }));
 
         if (errors.length === 0) {
-          toast.success(`${validData.length} matériels prêts à être enregistrés`);
+          toast.success(`${validData.length} matériels prêts`);
         } else {
-          toast.warning(`${errors.length} erreur(s) détectée(s)`);
+          toast.warning(`${errors.length} erreur(s)`);
         }
 
-      } catch (error) {
-        toast.error('Erreur lors de la lecture du fichier');
-        console.error(error);
+      } catch (err) {
+        toast.error('Erreur lecture fichier');
       }
     };
     reader.readAsArrayBuffer(file);
-    
     event.target.value = null;
   };
 
-  // Enregistrer les matériels préparés
-  const savePreparedMaterials = async (prix) => {
-    const data = importData[prix.id] || [];
-    const errors = importErrors[prix.id] || [];
+  // === ENREGISTREMENT (manuel ou import) ===
+  const savePreparedMaterials = async (prix, mode = 'manual') => {
+    const materiels = materielsData[prix.id] || [];
+    let updates = [];
 
-    if (data.length === 0) {
-      toast.error('Aucune donnée à enregistrer');
-      return;
+    if (mode === 'import') {
+      updates = importData[prix.id] || [];
+    } else {
+      // Mode manuel : collecter les modifications
+      updates = materiels
+        .map(m => {
+          const key = `${prix.id}_${m.id}`;
+          const edits = editingSerials[key] || {};
+          const hasChanges = edits.numeroSerie !== undefined || edits.numeroSerieEcran !== undefined;
+          
+          if (!hasChanges) return null;
+          
+          return {
+            numeroSerie: edits.numeroSerie ?? m.numeroSerie ?? null,
+            numeroSerieEcran: edits.numeroSerieEcran ?? m.numeroSerieEcran ?? null,
+            observations: m.observations,
+            prixId: prix.id
+          };
+        })
+        .filter(Boolean);
     }
 
-    if (errors.length > 0) {
-      toast.error('Veuillez corriger les erreurs avant d\'enregistrer');
+    if (updates.length === 0) {
+      toast.info('Aucune modification à enregistrer');
       return;
     }
 
     try {
       setProcessing(true);
+      const response = await preparerMateriels(prix.id, updates);
       
-      const response = await preparerMateriels(prix.id, data);
+      toast.success(`${response.data?.length || updates.length} matériel(s) mis à jour`);
       
-      toast.success(`${data.length} matériel(s) préparé(s) avec succès`);
-      
+      // Recharger + nettoyer
       await loadMaterielsForPrix(prix.id);
-      
-      setShowImportPreview(prev => ({
-        ...prev,
-        [prix.id]: false
-      }));
-      
-      setImportData(prev => ({
-        ...prev,
-        [prix.id]: []
-      }));
-      
-      if (onComplete) onComplete();
+      setEditingSerials(prev => {
+        const cleaned = { ...prev };
+        Object.keys(cleaned).forEach(k => { if (k.startsWith(`${prix.id}_`)) delete cleaned[k]; });
+        return cleaned;
+      });
+      if (mode === 'import') {
+        setImportData(prev => ({ ...prev, [prix.id]: [] }));
+        setImportErrors(prev => ({ ...prev, [prix.id]: [] }));
+        setShowImportPreview(prev => ({ ...prev, [prix.id]: false }));
+      }
+      onComplete?.();
       
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Erreur lors de l\'enregistrement');
+      toast.error(error.response?.data?.message || 'Erreur enregistrement');
     } finally {
       setProcessing(false);
     }
   };
 
-  // Compter les matériels préparés
+  // === STATS & UTILS ===
   const getProgress = (prixId, quantite) => {
     const materiels = materielsData[prixId] || [];
-    const prepared = materiels.filter(m => m.numeroSerie || m.numeroInventaire).length;
+    const prepared = materiels.filter(m => m.numeroSerie).length;
     return { prepared, total: quantite };
   };
 
-  // Annuler l'import
-  const cancelImport = (prixId) => {
-    setShowImportPreview(prev => ({
-      ...prev,
-      [prixId]: false
-    }));
-    setImportData(prev => ({
-      ...prev,
-      [prixId]: []
-    }));
-    setImportErrors(prev => ({
-      ...prev,
-      [prixId]: []
-    }));
+  const hasEcran = (prix) => {
+    return prix.nature?.toLowerCase().includes('ordinateur') || prix.ecran || prix.ecranInventorie;
   };
 
-  // Réinitialiser la sélection
+  const cancelImport = (prixId) => {
+    setShowImportPreview(prev => ({ ...prev, [prixId]: false }));
+    setImportData(prev => ({ ...prev, [prixId]: [] }));
+    setImportErrors(prev => ({ ...prev, [prixId]: [] }));
+  };
+
   const resetSelection = () => {
     setSelectedAchat(null);
     setPrixList([]);
     setExpandedPrix(null);
     setMaterielsData({});
+    setEditingSerials({});
     setImportData({});
     setImportErrors({});
     setShowImportPreview({});
   };
 
+  // === RENDER ===
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-[98vw] mx-auto">
+      
       {/* En-tête */}
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center">
           <FiPackage className="mr-2 text-blue-600" />
-          Préparation des matériels
+          Préparation des Numéros de Série
         </h2>
         <p className="text-sm text-gray-600 mt-1">
-          Sélectionnez un achat, puis saisissez les numéros de série et d'inventaire
+          Saisissez ou modifiez les numéros de série des matériels et écrans
         </p>
       </div>
 
-      {/* Étape 1 : Sélection de l'achat */}
-      <div className="mb-8">
-        <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+      {/* Étape 1 : Achat */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           <span className="bg-blue-100 text-blue-800 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">1</span>
           Sélectionner un achat
-        </h3>
-
+        </label>
+        
         {!selectedAchat ? (
           <div className="relative">
-            <button
-              onClick={() => setShowAchatDropdown(!showAchatDropdown)}
-              className="w-full p-4 border border-gray-300 rounded-xl text-left flex justify-between items-center hover:border-blue-400 transition-colors"
-            >
+            <button onClick={() => setShowAchatDropdown(!showAchatDropdown)}
+              className="w-full p-4 border rounded-xl text-left flex justify-between hover:border-blue-400 bg-white">
               <div className="flex items-center">
                 <FiShoppingCart className="mr-3 text-gray-400" />
-                <span className="text-gray-500">Cliquez pour sélectionner un achat...</span>
+                <span className="text-gray-500">Rechercher un achat...</span>
               </div>
               <FiChevronDown className={`transition-transform ${showAchatDropdown ? 'rotate-180' : ''}`} />
             </button>
-
+            
             {showAchatDropdown && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-96 overflow-y-auto">
+              <div className="absolute z-20 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-80 overflow-y-auto">
                 <div className="p-3 border-b sticky top-0 bg-white">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={achatSearchTerm}
-                      onChange={(e) => setAchatSearchTerm(e.target.value)}
-                      placeholder="Rechercher par référence ou fournisseur..."
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoFocus
-                    />
-                    <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
-                  </div>
+                  <input type="text" value={achatSearchTerm} onChange={(e) => setAchatSearchTerm(e.target.value)}
+                    placeholder="Référence ou fournisseur..." className="w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
                 </div>
-                
                 <div className="py-2">
                   {loadingAchats ? (
-                    <div className="p-4 text-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                    </div>
+                    <div className="p-4 text-center"><div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 mx-auto"/></div>
                   ) : filteredAchats.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">
-                      Aucun achat trouvé
-                    </div>
-                  ) : (
-                    filteredAchats.map(achat => (
-                      <div
-                        key={achat.id}
-                        onClick={() => handleAchatSelect(achat)}
-                        className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-gray-800">{achat.reference}</div>
-                            <div className="text-sm text-gray-600 mt-1 flex items-center">
-                              <FiTruck className="mr-1" size={12} />
-                              {achat.fournisseur?.nom || 'Fournisseur inconnu'}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm text-gray-700 flex items-center">
-                              <FiCalendar className="mr-1" size={12} />
-                              {formatDate(achat.date)}
-                            </div>
-                          </div>
-                        </div>
+                    <div className="p-4 text-center text-gray-500">Aucun achat trouvé</div>
+                  ) : filteredAchats.map(achat => (
+                    <button key={achat.id} onClick={() => handleAchatSelect(achat)}
+                      className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b last:border-b-0">
+                      <div className="flex justify-between">
+                        <span className="font-medium">{achat.reference}</span>
+                        <span className="text-xs text-gray-500">{formatDate(achat.date)}</span>
                       </div>
-                    ))
-                  )}
+                      <span className="text-xs text-gray-500">{achat.fournisseur?.nom}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
           </div>
         ) : (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="flex items-center mb-2">
-                  <FiShoppingCart className="text-blue-600 mr-2" />
-                  <span className="font-medium text-gray-800">{selectedAchat.reference}</span>
-                  <span className="ml-2 px-2 py-0.5 bg-blue-200 text-blue-800 text-xs rounded-full">
-                    {prixList.length} prix
-                  </span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  <FiTruck className="inline mr-1" size={12} />
-                  Fournisseur: {selectedAchat.fournisseur?.nom}
-                </div>
-              </div>
-              <button
-                onClick={resetSelection}
-                className="text-gray-400 hover:text-gray-600 p-1"
-                title="Changer d'achat"
-              >
-                <FiX size={18} />
-              </button>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex justify-between">
+            <div>
+              <span className="font-medium">{selectedAchat.reference}</span>
+              <span className="ml-2 text-sm text-gray-600">{selectedAchat.fournisseur?.nom}</span>
             </div>
+            <button onClick={resetSelection} className="text-gray-400 hover:text-gray-600"><FiX size={18}/></button>
           </div>
         )}
       </div>
 
-      {/* Étape 2 : Préparation des matériels */}
+      {/* Étape 2 : Prix et Matériels */}
       {selectedAchat && (
         <div>
-          <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+          <label className="block text-sm font-medium text-gray-700 mb-3">
             <span className="bg-green-100 text-green-800 w-7 h-7 rounded-full flex items-center justify-center mr-2 text-sm">2</span>
-            Préparer les matériels
-          </h3>
+            Préparer les matériels ({prixList.length} prix)
+          </label>
 
           {loading ? (
-            <div className="flex justify-center items-center h-32">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
+            <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500"/></div>
           ) : prixList.length === 0 ? (
-            <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <FiPackage className="mx-auto text-4xl text-gray-400 mb-3" />
-              <p className="text-gray-600">Aucun prix trouvé pour cet achat</p>
+            <div className="text-center py-8 bg-gray-50 rounded-lg text-gray-600">
+              <FiAlertCircle className="mx-auto text-3xl mb-2"/> Aucun prix trouvé
             </div>
           ) : (
             <div className="space-y-4">
-              {prixList.map((prix) => {
+              {prixList.map(prix => {
+                const materiels = materielsData[prix.id] || [];
                 const progress = getProgress(prix.id, prix.quantite);
                 const isExpanded = expandedPrix === prix.id;
-                const currentImportData = importData[prix.id] || [];
-                const currentErrors = importErrors[prix.id] || [];
-                const showPreview = showImportPreview[prix.id];
+                const hasEcranField = hasEcran(prix);
+                const importPreview = showImportPreview[prix.id];
+                const importDataPrix = importData[prix.id] || [];
+                const importErrorsPrix = importErrors[prix.id] || [];
 
                 return (
-                  <div key={prix.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                    {/* En-tête du prix */}
-                    <div
-                      onClick={() => handleExpandPrix(prix.id)}
-                      className={`p-4 cursor-pointer transition-colors ${
-                        isExpanded ? 'bg-blue-50' : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3">
-                            <span className="font-semibold text-gray-800">{prix.numeroPrix}</span>
-                            <span className="text-sm text-gray-600">-</span>
-                            <span className="text-sm text-gray-700">{prix.designation}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-4 mt-2">
-                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-                              Qté: {prix.quantite}
+                  <div key={prix.id} className="border rounded-xl overflow-hidden">
+                    
+                    {/* Header Prix */}
+                    <button onClick={() => handleExpandPrix(prix.id)}
+                      className={`w-full p-4 text-left flex justify-between transition-colors ${isExpanded ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold">{prix.numeroPrix}</span>
+                          <span className="text-gray-600">•</span>
+                          <span className="text-gray-700">{prix.designation}</span>
+                          {hasEcranField && (
+                            <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full flex items-center">
+                              <FiMonitor className="mr-1" size={10}/> Avec écran
                             </span>
-                            
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-green-500 transition-all"
-                                  style={{ width: `${(progress.prepared / progress.total) * 100}%` }}
-                                />
-                              </div>
-                              <span className="text-xs text-gray-600">
-                                {progress.prepared}/{progress.total} préparés
-                              </span>
-                            </div>
-
-                            {progress.prepared === progress.total && progress.total > 0 && (
-                              <span className="text-green-600 flex items-center text-sm">
-                                <FiCheck className="mr-1" size={16} />
-                                Complet
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </div>
-
-                        <div>
-                          {isExpanded ? (
-                            <FiChevronUp className="text-gray-400" size={20} />
-                          ) : (
-                            <FiChevronDown className="text-gray-400" size={20} />
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">Qté: {prix.quantite}</span>
+                          <div className="flex items-center gap-2 flex-1 max-w-xs">
+                            <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-green-500 transition-all" style={{width: `${(progress.prepared/progress.total)*100}%`}}/>
+                            </div>
+                            <span className="text-xs text-gray-600">{progress.prepared}/{progress.total}</span>
+                          </div>
+                          {progress.prepared === progress.total && progress.total > 0 && (
+                            <span className="text-green-600 text-xs flex items-center"><FiCheck className="mr-1" size={12}/> OK</span>
                           )}
                         </div>
                       </div>
-                    </div>
+                      {isExpanded ? <FiChevronUp/> : <FiChevronDown/>}
+                    </button>
 
-                    {/* Contenu détaillé */}
+                    {/* Contenu */}
                     {isExpanded && (
-                      <div className="p-4 border-t border-gray-200 bg-gray-50">
+                      <div className="p-4 border-t bg-gray-50">
+                        
                         {/* Actions */}
                         <div className="flex gap-2 mb-4">
-                          <button
-                            onClick={() => downloadTemplate(prix)}
-                            className="px-3 py-2 text-sm border border-gray-300 bg-white rounded-lg hover:bg-gray-50 flex items-center"
-                          >
-                            <FiDownload className="mr-1" size={16} />
-                            Modèle Excel
+                          <button onClick={() => downloadTemplate(prix)}
+                            className="px-3 py-1.5 text-sm border bg-white rounded-lg hover:bg-gray-50 flex items-center">
+                            <FiDownload className="mr-1" size={14}/> Template Excel
                           </button>
-                          
-                          <label className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center cursor-pointer">
-                            <FiUpload className="mr-1" size={16} />
-                            Importer Excel
-                            <input
-                              type="file"
-                              accept=".xlsx,.xls"
-                              onChange={(e) => handleFileImport(e, prix)}
-                              className="hidden"
-                            />
+                          <label className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center cursor-pointer">
+                            <FiUpload className="mr-1" size={14}/> Importer Excel
+                            <input type="file" accept=".xlsx,.xls" onChange={(e) => handleFileImport(e, prix)} className="hidden"/>
                           </label>
                         </div>
 
-                        {/* Aperçu de l'import */}
-                        {showPreview && currentImportData.length > 0 && (
-                          <div className="mb-4 border rounded-lg overflow-hidden bg-white">
-                            <div className="bg-gray-100 p-3 border-b flex justify-between items-center">
-                              <span className="font-medium text-gray-700">Aperçu des données importées</span>
-                              {currentErrors.length > 0 && (
-                                <span className="text-sm text-red-600 flex items-center">
-                                  <FiAlertCircle className="mr-1" size={14} />
-                                  {currentErrors.length} erreur(s)
-                                </span>
-                              )}
+                        {/* Aperçu Import */}
+                        {importPreview && importDataPrix.length > 0 && (
+                          <div className="mb-4 p-4 bg-white border border-blue-200 rounded-lg">
+                            <div className="flex justify-between mb-3">
+                              <span className="font-medium">{importDataPrix.length} affectation(s)</span>
+                              <button onClick={() => cancelImport(prix.id)} className="text-gray-400"><FiX size={16}/></button>
                             </div>
-                            
-                            <div className="p-4 max-h-64 overflow-y-auto">
-                              {currentErrors.length > 0 && (
-                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                  <p className="text-sm font-medium text-red-800 mb-2">Erreurs détectées :</p>
-                                  <ul className="text-sm text-red-700 list-disc list-inside">
-                                    {currentErrors.map((err, idx) => (
-                                      <li key={idx}>
-                                        {err.ligne > 0 ? `Ligne ${err.ligne} : ` : ''}
-                                        {err.erreurs.join(', ')}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              
-                              <table className="min-w-full text-sm">
-                                <thead>
-                                  <tr className="border-b">
-                                    <th className="text-left py-2">N° Série</th>
-                                    <th className="text-left py-2">N° Inventaire</th>
-                                    <th className="text-left py-2">Observations</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {currentImportData.map((item, idx) => (
-                                    <tr key={idx} className="border-b border-gray-100">
-                                      <td className="py-2 font-mono text-xs">
-                                        {item.numeroSerie || <span className="text-gray-400">-</span>}
-                                      </td>
-                                      <td className="py-2 font-mono text-xs">
-                                        {item.numeroInventaire || <span className="text-gray-400">-</span>}
-                                      </td>
-                                      <td className="py-2 text-xs text-gray-600">
-                                        {item.observations || '-'}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            
-                            <div className="bg-gray-100 p-3 border-t flex justify-end gap-2">
-                              <button
-                                onClick={() => cancelImport(prix.id)}
-                                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-200"
-                              >
-                                Annuler
-                              </button>
-                              <button
-                                onClick={() => savePreparedMaterials(prix)}
-                                disabled={currentErrors.length > 0 || processing}
-                                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 flex items-center"
-                              >
-                                {processing ? (
-                                  <>
-                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                                    Enregistrement...
-                                  </>
-                                ) : (
-                                  <>
-                                    <FiSave className="mr-1" size={14} />
-                                    Enregistrer
-                                  </>
-                                )}
+                            {importErrorsPrix.length > 0 && (
+                              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                                <p className="font-medium">Erreurs :</p>
+                                <ul className="list-disc list-inside">
+                                  {importErrorsPrix.slice(0,3).map((err,i) => <li key={i}>Ligne {err.ligne}: {err.erreurs.join(', ')}</li>)}
+                                </ul>
+                              </div>
+                            )}
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => cancelImport(prix.id)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-100">Annuler</button>
+                              <button onClick={() => savePreparedMaterials(prix, 'import')} disabled={importErrorsPrix.length > 0 || processing}
+                                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center">
+                                <FiSave className="mr-1" size={14}/> Enregistrer
                               </button>
                             </div>
                           </div>
                         )}
 
-                        {/* Liste des matériels existants */}
-                        {materielsData[prix.id]?.length > 0 && (
-                          <div className="border rounded-lg overflow-hidden bg-white">
-                            <div className="bg-gray-100 p-3 border-b">
-                              <span className="font-medium text-gray-700">
-                                Matériels existants ({materielsData[prix.id].length})
-                              </span>
-                            </div>
-                            
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200">
+                        {/* Liste Matériels */}
+                        {materiels.length === 0 ? (
+                          <div className="text-center py-6 text-gray-500">
+                            <FiAlertCircle className="mx-auto text-2xl mb-2"/>
+                            Aucun matériel trouvé pour ce prix
+                          </div>
+                        ) : (
+                          <>
+                            <div className="overflow-x-auto bg-white rounded-lg border">
+                              <table className="w-full text-sm min-w-[900px]">
                                 <thead className="bg-gray-50">
                                   <tr>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">N° Série</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">N° Inventaire</th>
-                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">État</th>
+                                    <th className="text-left py-2.5 px-3 font-medium text-gray-600 min-w-[180px]">N° Série Matériel *</th>
+                                    {hasEcranField && (
+                                      <th className="text-left py-2.5 px-3 font-medium text-gray-600 min-w-[180px]">N° Série Écran</th>
+                                    )}
+                                    <th className="text-left py-2.5 px-3 font-medium text-gray-600">Nature</th>
+                                    <th className="text-left py-2.5 px-3 font-medium text-gray-600">État</th>
                                   </tr>
                                 </thead>
-                                <tbody>
-                                  {materielsData[prix.id].map((materiel) => (
-                                    <tr key={materiel.id}>
-                                      <td className="px-4 py-2 text-sm font-mono">
-                                        {materiel.numeroSerie || '-'}
-                                      </td>
-                                      <td className="px-4 py-2 text-sm font-mono">
-                                        {materiel.numeroInventaire || '-'}
-                                      </td>
-                                      <td className="px-4 py-2">
-                                        <span className={`px-2 py-1 text-xs rounded-full ${
-                                          materiel.numeroSerie || materiel.numeroInventaire
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                          {materiel.numeroSerie || materiel.numeroInventaire ? 'Préparé' : 'En attente'}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                <tbody className="divide-y">
+                                  {materiels.map(materiel => {
+                                    const key = `${prix.id}_${materiel.id}`;
+                                    const serieVal = getDisplayValue(prix.id, materiel, 'numeroSerie');
+                                    const ecranVal = getDisplayValue(prix.id, materiel, 'numeroSerieEcran');
+                                    const serieModified = isModified(prix.id, materiel, 'numeroSerie');
+                                    const ecranModified = isModified(prix.id, materiel, 'numeroSerieEcran');
+                                    const isPrepared = serieVal || ecranVal;
+                                    
+                                    return (
+                                      <tr key={materiel.id} className={`hover:bg-gray-50 ${serieModified || ecranModified ? 'bg-yellow-50' : ''}`}>
+                                        {/* N° Série Matériel */}
+                                        <td className="py-2.5 px-3">
+                                          <input
+                                            type="text"
+                                            value={serieVal}
+                                            onChange={(e) => handleSerialChange(prix.id, materiel.id, 'numeroSerie', e.target.value)}
+                                            placeholder="Saisir N° Série"
+                                            className={`w-full px-3 py-1.5 border rounded text-xs font-mono focus:outline-none focus:ring-2 ${
+                                              serieModified ? 'border-yellow-400 bg-yellow-50 focus:ring-yellow-500' :
+                                              serieVal ? 'border-green-300 bg-green-50 focus:ring-green-500' :
+                                              'border-gray-300 focus:ring-blue-500'
+                                            }`}
+                                          />
+                                          <div className="flex items-center gap-1 mt-1">
+                                            {serieModified && <span className="text-xs text-yellow-700 flex items-center"><FiEdit2 className="mr-0.5" size={10}/> Modifié</span>}
+                                            {!serieModified && serieVal && <span className="text-xs text-green-700 flex items-center"><FiCheck className="mr-0.5" size={10}/> Attribué</span>}
+                                            {!serieVal && <span className="text-xs text-red-500">Requis</span>}
+                                          </div>
+                                        </td>
+                                        
+                                        {/* N° Série Écran (si applicable) */}
+                                        {hasEcranField && (
+                                          <td className="py-2.5 px-3">
+                                            <input
+                                              type="text"
+                                              value={ecranVal}
+                                              onChange={(e) => handleSerialChange(prix.id, materiel.id, 'numeroSerieEcran', e.target.value)}
+                                              placeholder="Saisir N° Série Écran"
+                                              className={`w-full px-3 py-1.5 border rounded text-xs font-mono focus:outline-none focus:ring-2 ${
+                                                ecranModified ? 'border-yellow-400 bg-yellow-50 focus:ring-yellow-500' :
+                                                ecranVal ? 'border-green-300 bg-green-50 focus:ring-green-500' :
+                                                'border-gray-300 focus:ring-blue-500'
+                                              }`}
+                                            />
+                                            {ecranModified && <span className="text-xs text-yellow-700 mt-1 block flex items-center"><FiEdit2 className="mr-0.5" size={10}/> Modifié</span>}
+                                          </td>
+                                        )}
+                                        
+                                        {/* Nature */}
+                                        <td className="py-2.5 px-3 text-gray-700">{prix.nature || '-'}</td>
+                                        
+                                        {/* État */}
+                                        <td className="py-2.5 px-3">
+                                          <span className={`px-2 py-1 text-xs rounded-full ${
+                                            isPrepared ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                                          }`}>
+                                            {isPrepared ? 'Préparé' : 'En attente'}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
-                          </div>
+                            
+                            {/* Bouton Enregistrer */}
+                            <div className="mt-4 flex justify-end">
+                              <button
+                                onClick={() => savePreparedMaterials(prix, 'manual')}
+                                disabled={processing}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center">
+                                {processing ? (
+                                  <><div className="animate-spin rounded-full h-4 w-4 border-2 border-white mr-2"/> Enregistrement...</>
+                                ) : (
+                                  <><FiSave className="mr-2" size={16}/> Enregistrer les modifications</>
+                                )}
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
                     )}

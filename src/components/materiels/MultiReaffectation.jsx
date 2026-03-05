@@ -18,6 +18,10 @@ import {
 } from '../../services/materialService';
 import { getAllBeneficiaires } from '../../services/beneficiareService';
 import { toast } from 'react-toastify';
+// ✅ Nouvel import explicite
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';  // ← Import direct du plugin
+
 
 const MultiReaffectation = () => {
   // États pour les bénéficiaires
@@ -43,6 +47,10 @@ const MultiReaffectation = () => {
   // Date et observations
   const [dateReaffectation, setDateReaffectation] = useState(new Date().toISOString().split('T')[0]);
   const [observations, setObservations] = useState('');
+
+// Après les autres useState
+const [lastReaffectationResult, setLastReaffectationResult] = useState(null);
+const [showPdfPreview, setShowPdfPreview] = useState(false);
 
   // Charger les bénéficiaires
   useEffect(() => {
@@ -166,7 +174,25 @@ const MultiReaffectation = () => {
 
       const results = await Promise.all(promises);
       
-      toast.success(`${results.length} matériel(s) transféré(s) avec succès !`);
+// Dans le bloc try, après les résultats :
+toast.success(`${results.length} matériel(s) transféré(s) avec succès !`);
+
+// Stocker les données pour le PV
+setLastReaffectationResult({
+  source: { ...sourceBeneficiaire },
+  destination: { ...destinationBeneficiaire },
+  materiels: [...materielsSelectionnes],
+  date: dateReaffectation,
+  observations: observations
+});
+
+setShowPdfPreview(true);
+
+// Recharger les matériels du bénéficiaire source
+if (sourceBeneficiaire) {
+  const response = await getMaterielsByBeneficiaire(sourceBeneficiaire.id);
+  setMaterielsSource(response.data || []);
+}
       
       // Réinitialiser le formulaire
       resetForm();
@@ -184,7 +210,246 @@ const MultiReaffectation = () => {
       setLoadingReaffectation(false);
     }
   };
+// Génère le PV de changement en PDF
+// Génère le PV de changement en PDF - Version corrigée
+// Génère le PV de changement au format ORMVAD/SMG-BPI
+const generatePVChangementPDF = () => {
+  if (!lastReaffectationResult) {
+    toast.warning('Aucune réaffectation récente à imprimer');
+    return;
+  }
 
+  const { source, destination, materiels, date, observations } = lastReaffectationResult;
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  
+  // ==========================================
+  // HEADER
+  // ==========================================
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("ORMVAD", 14, 15);
+  doc.setFont("helvetica", "normal");
+  doc.text("SMG/BPI", 14, 21);
+  
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.5);
+  doc.rect(pageWidth - 35, 10, 25, 8);
+  doc.setFontSize(10);
+  doc.text("N°", pageWidth - 22, 16);
+  
+  doc.setFontSize(16);
+  doc.setFont("helvetica", "bold");
+  const titleText = "PROCES VERBAL DE CHANGEMENT";
+  const titleWidth = doc.getTextWidth(titleText);
+  const titleX = (pageWidth - titleWidth) / 2;
+  doc.text(titleText, titleX, 35);
+  doc.setLineWidth(0.5);
+  doc.rect(titleX - 3, 26, titleWidth + 6, 12);
+  
+  // ==========================================
+  // PARTIES SECTION
+  // ==========================================
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Entre les soussignés :", 14, 50);
+  
+  // Helper pour formater les noms
+  const formatNomComplet = (nom, prenom) => {
+    if (nom && prenom) return `${nom.toUpperCase()} ${prenom.toUpperCase()}`;
+    if (nom) return nom.toUpperCase();
+    return "........................";
+  };
+  
+  // L'Expéditeur (Source)
+  doc.setFont("helvetica", "bold");
+  doc.text("L'Expéditeur :", 20, 60);
+  doc.setFont("helvetica", "normal");
+  
+  const sourceNomComplet = formatNomComplet(source.nom, source.prenom);
+  const sourceDepartement = source.departement?.nom || source.service?.nom || "...........";
+  
+  doc.text(sourceNomComplet, 50, 60);
+  doc.text(`Matricule : ${source.matricule || "..............."}`, 50, 67);
+  doc.text("Code Analytique : ...............", 90, 67);
+  doc.text(`Local. : ${sourceDepartement}`, 150, 67);
+  
+  doc.setFont("helvetica", "italic");
+  doc.text("D'UNE PART", pageWidth - 35, 73);
+  
+  // Le Preneur (Destination)
+  doc.setFont("helvetica", "bold");
+  doc.text("Le Preneur :", 20, 83);
+  doc.setFont("helvetica", "normal");
+  
+  const destNomComplet = formatNomComplet(destination.nom, destination.prenom);
+  const destDepartement = destination.departement?.nom || destination.service?.nom || "...........";
+  
+  doc.text(destNomComplet, 50, 83);
+  doc.text(`Matricule : ${destination.matricule || "..............."}`, 50, 90);
+  doc.text("Code Analytique : ...............", 90, 90);
+  doc.text(`Local. : ${destDepartement}`, 150, 90);
+  
+  doc.setFont("helvetica", "italic");
+  doc.text("D'AUTRE PART", pageWidth - 35, 96);
+  
+  // Intro text
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text("Le preneur soussigné avoir pris en charge les articles ci-dessous", 14, 106);
+  
+  // ==========================================
+  // TABLE - MULTI MATÉRIELS
+  // ==========================================
+  const tableColumn = [
+    "Code Inventaire Origine",
+    "Désignation",
+    "Uté",
+    "Qté",
+    "Prix Unitaire",
+    "Code Inventaire Nouveau"
+  ];
+  
+  const tableRows = materiels.map(materiel => {
+    // Formatage de la désignation avec type + numéro de série
+    const designation = `${materiel.type?.designation || 'N/A'}\nNS: ${materiel.numeroSerie || ''}`;
+    
+    // Formatage du prix (adaptez selon votre structure de données)
+    const prixUnitaire = materiel.prix?.montant 
+      ? `${materiel.prix.montant.toLocaleString('fr-FR')} DH` 
+      : (materiel.prixAchat ? `${materiel.prixAchat} DH` : "");
+    
+    return [
+      materiel.numeroInventaire || "",           // Code Inventaire Origine
+      designation,                                // Désignation avec saut de ligne
+      "U",                                        // Uté (unité)
+      "01",                                       // Qté (toujours 1 par ligne)
+      prixUnitaire,                               // Prix Unitaire
+      ""                                          // Code Inventaire Nouveau (vide comme demandé)
+    ];
+  });
+  
+  autoTable(doc, {
+    startY: 110,
+    head: [tableColumn],
+    body: tableRows,
+    theme: 'grid',
+    styles: { 
+      fontSize: 9, 
+      cellPadding: 3,
+      font: 'helvetica',
+      lineColor: [0, 0, 0],
+      lineWidth: 0.5,
+      cellWidth: 'auto',
+      overflow: 'linebreak'  // Permet le saut de ligne dans les cellules
+    },
+    headStyles: { 
+      fillColor: [255, 255, 255],
+      textColor: [0, 0, 0], 
+      fontStyle: 'bold',
+      halign: 'center',
+      lineWidth: 0.5
+    },
+    bodyStyles: { 
+      textColor: [0, 0, 0],
+      valign: 'top'  // Alignement haut pour les cellules multi-lignes
+    },
+    columnStyles: {
+      0: { cellWidth: 38, halign: 'center' }, // Code Inventaire Origine
+      1: { cellWidth: 62, halign: 'left' },   // Désignation (plus large pour le texte)
+      2: { cellWidth: 15, halign: 'center' }, // Uté
+      3: { cellWidth: 15, halign: 'center' }, // Qté
+      4: { cellWidth: 25, halign: 'right' },  // Prix Unitaire
+      5: { cellWidth: 38, halign: 'center' }  // Code Inventaire Nouveau
+    },
+    margin: { left: 10, right: 10 },
+    didParseCell: (data) => {
+      // Ajout d'un saut de ligne automatique dans la colonne Désignation
+      if (data.column.index === 1 && data.cell.raw) {
+        data.cell.styles.minCellHeight = 15; // Hauteur minimale pour 2 lignes
+      }
+    }
+  });
+  
+  // ==========================================
+  // FOOTER SECTION
+  // ==========================================
+  const finalY = doc.lastAutoTable?.finalY || 150;
+  
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("Etat des articles Mutés :", 14, finalY + 10);
+  doc.setLineWidth(0.25);
+  doc.setDrawColor(150);
+  doc.line(50, finalY + 10, pageWidth - 20, finalY + 10);
+  doc.line(14, finalY + 18, pageWidth - 20, finalY + 18);
+  doc.line(14, finalY + 26, pageWidth - 20, finalY + 26);
+  
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(80);
+  
+  const notaText1 = "NOTA : Aucun mouvement de mobilier ou de matériel ne peut être effectué sans avis préalable du responsable du patrimoine.";
+  const notaText2 = "En cas de perte le détenteur de l'objet se trouve dans l'obligation de le remplacer.";
+  
+  doc.text(notaText1, 14, finalY + 38, { maxWidth: pageWidth - 34 });
+  doc.text(notaText2, 14, finalY + 43, { maxWidth: pageWidth - 34 });
+  
+  doc.setTextColor(0);
+  
+  // Date avec observations si présentes
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const dateStr = date ? new Date(date).toLocaleDateString('fr-FR') : '.../.../......';
+  doc.text(`Fait à : .................... Le ${dateStr}`, 14, finalY + 55);
+  
+  // Affichage des observations si présentes
+  if (observations) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.text(`Obs. : ${observations}`, 14, finalY + 62, { maxWidth: pageWidth - 34 });
+  }
+  
+  // ==========================================
+  // SIGNATURE SECTIONS
+  // ==========================================
+  const signY = finalY + (observations ? 75 : 70);
+  const signWidth = 45;
+  
+  doc.setLineWidth(0.25);
+  doc.setDrawColor(0);
+  
+  // L'EXPEDITEUR
+  doc.line(14, signY, 14 + signWidth, signY);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.text("L'EXPEDITEUR", 14 + signWidth/2, signY + 8, { align: 'center' });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text(sourceNomComplet, 14 + signWidth/2, signY + 14, { align: 'center' });
+  
+  // LE REPRESENTANT DU BPI
+  const middleX = pageWidth / 2;
+  doc.line(middleX - signWidth/2, signY, middleX + signWidth/2, signY);
+  doc.text("LE REPRESENTANT DU BPI", middleX, signY + 8, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text("Vu et approuvé", middleX, signY + 14, { align: 'center' });
+  
+  // LE PRENEUR
+  const rightX = pageWidth - 20 - signWidth;
+  doc.line(rightX, signY, rightX + signWidth, signY);
+  doc.text("LE PRENEUR", rightX + signWidth/2, signY + 8, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text(destNomComplet, rightX + signWidth/2, signY + 14, { align: 'center' });
+  
+  // ==========================================
+  // SAVE PDF
+  // ==========================================
+  const fileName = `PV_Changement_${date}_${source.matricule || 'source'}_vers_${destination.matricule || 'dest'}.pdf`;
+  doc.save(fileName);
+  
+  toast.success('PV de changement téléchargé avec succès !');
+};
   const resetForm = () => {
     setSourceBeneficiaire(null);
     setDestinationBeneficiaire(null);
@@ -620,6 +885,43 @@ const MultiReaffectation = () => {
               )}
             </button>
           </div>
+          {/* Bouton d'impression PDF - affiché après succès */}
+{showPdfPreview && lastReaffectationResult && (
+  <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl">
+    <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center">
+        <FiCheck className="text-green-600 mr-2" />
+        <span className="font-medium text-green-800">
+          ✓ {lastReaffectationResult.materiels.length} matériel(s) transféré(s)
+        </span>
+      </div>
+      <div className="flex space-x-3">
+        <button
+          type="button"
+          onClick={generatePVChangementPDF}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center"
+        >
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+          Télécharger le PV (PDF)
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            resetForm();
+            setShowPdfPreview(false);
+            setLastReaffectationResult(null);
+          }}
+          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+        >
+          Nouvelle opération
+        </button>
+      </div>
+    </div>
+  </div>
+)}
         </form>
       </div>
 

@@ -57,6 +57,19 @@ export const getMaterielsDisponiblesParPrix = (prixId) => {
     });
 };
 
+export const getMaterielsDisponiblesParPrixNew = (prixId) => {
+  if (!prixId) {
+    console.error('prixId est undefined!');
+    return Promise.reject(new Error('prixId requis'));
+  }
+  
+  return axios.get(`${API_BASE_URL}/achats/${prixId}/materiels-disponibles-par-prix-new`)
+    .then(response => {
+      console.log('Matériaux pour prix', prixId, ':', response.data);
+      return response;
+    });
+};
+
 // ✅ NOUVELLES FONCTIONS POUR PRISE EN CHARGE
 
 // Récupérer les matériels attribués par achat et bénéficiaire
@@ -79,37 +92,135 @@ export const getPriseEnChargeByAchat = (achatId) => {
  * @param {Array} preparationData - Liste des objets {numeroSerie, numeroInventaire, observations}
  * @returns {Promise}
  */
-export const preparerMateriels = (prixId, preparationData) => {
-  if (!prixId) {
-    return Promise.reject(new Error('prixId requis'));
-  }
+// export const preparerMateriels = (prixId, preparationData) => {
+//   if (!prixId) {
+//     return Promise.reject(new Error('prixId requis'));
+//   }
   
-  console.log(`Préparation de ${preparationData.length} matériels pour le prix ${prixId}`);
+//   console.log(`Préparation de ${preparationData.length} matériels pour le prix ${prixId}`);
   
-  return axios.post(`${API_BASE_URL}/preparation/${prixId}`, preparationData)
-    .then(response => {
-      console.log('Matériels préparés avec succès:', response.data);
-      return response;
-    })
-    .catch(error => {
-      console.error('Erreur lors de la préparation:', error);
-      throw error;
-    });
-};
+//   return axios.post(`${API_BASE_URL}/preparation/${prixId}`, preparationData)
+//     .then(response => {
+//       console.log('Matériels préparés avec succès:', response.data);
+//       return response;
+//     })
+//     .catch(error => {
+//       console.error('Erreur lors de la préparation:', error);
+//       throw error;
+//     });
+// };
 
 /**
  * ✅ Récupérer les matériels par ID de prix
  * @param {number} prixId - ID du prix
  * @returns {Promise}
  */
+// export const getMaterielsByPrix = (prixId) => {
+//   if (!prixId) {
+//     return Promise.reject(new Error('prixId requis'));
+//   }
+  
+//   return axios.get(`${API_BASE_URL}/prix/${prixId}`)
+//     .then(response => {
+//       console.log('Matériels pour prix', prixId, ':', response.data);
+//       return response;
+//     });
+// };
+
+// ===============================
+// 🔹 GESTION INVENTAIRE
+// ===============================
+
+/**
+ * Récupère les matériels d'un prix SANS numéro d'inventaire
+ */
+export const getMaterielsSansInventaireByPrix = (prixId) => {
+  if (!prixId) {
+    return Promise.reject(new Error('prixId requis'));
+  }
+
+  return axios.get(`${API_BASE_URL}/prix/${prixId}/sans-inventaire`)
+    .then(response => {
+      console.log('Matériels sans inventaire:', response.data);
+      return response;
+    })
+    .catch(error => {
+      console.error('Erreur getMaterielsSansInventaireByPrix:', error);
+      throw error;
+    });
+};
+
+
+/**
+ * Met à jour les numéros d'inventaire pour un prix
+ * @param {number} prixId - ID du prix
+ * @param {Array} updates - [{ numeroSerie, numeroInventaire }, ...]
+ */
+
+
+
+/**
+ * Exporte les données pour le template Excel d'un achat complet
+ */
+
+// a suprimmer avec leur endpoin,t backend 
+export const getMaterielsPreparationByPrix = (prixId) => {
+  return axios.get(`${API_BASE_URL}/prix/${prixId}/preparation`);
+};
+
+export const updateNumerosInventaire = (prixId, updates) => {
+  return axios.put(`${API_BASE_URL}/prix/${prixId}/inventaire`, updates);
+};
+
+export const exportTemplateInventaireByAchat = (achatId) => {
+  return axios.get(`${API_BASE_URL}/achat/${achatId}/template-inventaire`, {
+    responseType: 'blob'
+  });
+};
+
+
+// src/services/materialService.js
+
+/**
+ * Récupère les matériels d'un achat + bénéficiaire, avec N° Série uniquement
+ */
+export const getMaterielsByAchatAndBeneficiaireWithSerial = (achatId, beneficiaireId) => {
+  return axios.get(
+    `${API_BASE_URL}/achat/${achatId}/beneficiaire/${beneficiaireId}/avec-serie`
+  );
+};
+
+
+/**
+ * Met à jour les numéros d'inventaire pour un lot de matériels
+ * @param {number} achatId 
+ * @param {number} beneficiaireId 
+ * @param {Array} updates - [{ numeroSerie, numeroInventaire }, ...]
+ */
+export const updateNumerosInventaireBatch = (achatId, beneficiaireId, updates) => {
+  return axios.put(
+    `${API_BASE_URL}/achat/${achatId}/beneficiaire/${beneficiaireId}/inventaire`,
+    updates
+  );
+};
+
+// ===============================
+// 🔹 PRÉPARATION & PRIX
+// ===============================
+export const preparerMateriels = (prixId, data) => {
+  if (!prixId) {
+    return Promise.reject(new Error('prixId requis'));
+  }
+
+  return axios.post(`${API_BASE_URL}/preparation/${prixId}`, data)
+    .then(response => response);
+};
+
 export const getMaterielsByPrix = (prixId) => {
   if (!prixId) {
     return Promise.reject(new Error('prixId requis'));
   }
-  
+
   return axios.get(`${API_BASE_URL}/prix/${prixId}`)
-    .then(response => {
-      console.log('Matériels pour prix', prixId, ':', response.data);
-      return response;
-    });
+    .then(response => response);
 };

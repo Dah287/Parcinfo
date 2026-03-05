@@ -1,22 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FiPackage, FiClock, FiUser, FiCalendar, FiArrowRight, FiSearch, FiFilter,
-  FiInfo, FiX, FiChevronDown, FiCheck, FiHash, FiTag, FiBriefcase,
-  FiShoppingCart, FiLayers, FiRefreshCw, FiSliders, FiDownload
+  FiPackage,
+  FiClock,
+  FiUser,
+  FiCalendar,
+  FiArrowRight,
+  FiSearch,
+  FiFilter,
+  FiInfo,
+  FiX,
+  FiChevronDown,
+  FiCheck,
+  FiHash,
+  FiTag,
+  FiBriefcase,
+  FiShoppingCart,
+  FiLayers,
+  FiRefreshCw,
+  FiSliders
 } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import { getAllMateriels } from '../../services/materialService';
 import { getAllBeneficiaires } from '../../services/beneficiareService';
 import { getAllAchats } from '../../services/achatService';
 import { getHistoriqueByMateriel } from '../../services/historiqueService';
-import { getMaterielsByBeneficiaire, getMaterielsByAchat } from '../../services/materialService';
+import {
+  getMaterielsByBeneficiaire,
+  getMaterielsByAchat
+} from '../../services/materialService';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // ✅ Direct function import (more reliable)
 
 const HistoriqueMateriel = () => {
-  // ... (Keep all existing state variables exactly as they were in your original code) ...
   const [materiels, setMateriels] = useState([]);
   const [filteredMateriels, setFilteredMateriels] = useState([]);
   const [selectedMateriel, setSelectedMateriel] = useState(null);
@@ -24,27 +39,49 @@ const HistoriqueMateriel = () => {
   const [loadingMateriels, setLoadingMateriels] = useState(true);
   const [loadingHistorique, setLoadingHistorique] = useState(false);
   const [loadingFilters, setLoadingFilters] = useState(false);
+  
+  // États pour le dropdown de sélection du matériel
   const [showMaterielDropdown, setShowMaterielDropdown] = useState(false);
   const [materielSearch, setMaterielSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({ typeOperation: 'all', dateFrom: '', dateTo: '' });
+  
+  // Filtres d'historique
+  const [filters, setFilters] = useState({
+    typeOperation: 'all',
+    dateFrom: '',
+    dateTo: ''
+  });
+  
+  // Données pour les filtres
   const [beneficiaires, setBeneficiaires] = useState([]);
   const [achats, setAchats] = useState([]);
   const [types, setTypes] = useState([]);
+  
+  // Filtres sélectionnés (uniquement Achat, Bénéficiaire, Type, N° Série)
   const [selectedBeneficiaire, setSelectedBeneficiaire] = useState(null);
   const [selectedAchat, setSelectedAchat] = useState(null);
   const [selectedType, setSelectedType] = useState(null);
   const [selectedNumeroSerie, setSelectedNumeroSerie] = useState('');
+  
+  // États pour les dropdowns
   const [showBeneficiaireDropdown, setShowBeneficiaireDropdown] = useState(false);
   const [showAchatDropdown, setShowAchatDropdown] = useState(false);
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Recherche dans les dropdowns
   const [beneficiaireSearch, setBeneficiaireSearch] = useState('');
   const [achatSearch, setAchatSearch] = useState('');
   const [typeSearch, setTypeSearch] = useState('');
-  const [stats, setStats] = useState({ totalOperations: 0, attributions: 0, reaffectations: 0, liberations: 0 });
+  
+  const [stats, setStats] = useState({
+    totalOperations: 0,
+    attributions: 0,
+    reaffectations: 0,
+    liberations: 0
+  });
 
-  // ... (Keep all existing useEffects and helper functions exactly as they were) ...
+  // Charger les données pour les filtres
   useEffect(() => {
     const loadFilterData = async () => {
       try {
@@ -54,13 +91,19 @@ const HistoriqueMateriel = () => {
           getAllAchats(),
           getAllMateriels()
         ]);
+        
         setBeneficiaires(beneficiairesRes.data || []);
         setAchats(achatsRes.data || []);
+        
         const materielsData = materielsRes.data || [];
+        
+        // Extraction des types uniques
         const uniqueTypes = [...new Set(materielsData.map(m =>
           m.type?.designation || m.prix?.designation || m.caracteristiques?.['Nature']
         ).filter(Boolean))];
+        
         setTypes(uniqueTypes.map(t => ({ designation: t })));
+        
       } catch (err) {
         console.error('Erreur chargement filtres:', err);
         toast.error('Erreur lors du chargement des données');
@@ -69,14 +112,19 @@ const HistoriqueMateriel = () => {
         setLoadingMateriels(false);
       }
     };
+    
     loadFilterData();
   }, []);
 
+  // Charger les matériels avec les filtres
   useEffect(() => {
     const loadFilteredMateriels = async () => {
       try {
         setLoadingMateriels(true);
+        
+        // Construire les paramètres de filtrage
         let response;
+        
         if (selectedBeneficiaire) {
           response = await getMaterielsByBeneficiaire(selectedBeneficiaire.id);
         } else if (selectedAchat) {
@@ -84,17 +132,23 @@ const HistoriqueMateriel = () => {
         } else {
           response = await getAllMateriels();
         }
+        
         let filteredData = response.data || [];
+        
+        // Filtres supplémentaires côté client
         if (selectedType) {
           filteredData = filteredData.filter(m => getType(m) === selectedType.designation);
         }
+        
         if (selectedNumeroSerie && selectedNumeroSerie.trim()) {
-          filteredData = filteredData.filter(m =>
+          filteredData = filteredData.filter(m => 
             m.numeroSerie?.toLowerCase().includes(selectedNumeroSerie.toLowerCase())
           );
         }
+        
         setMateriels(filteredData);
         setFilteredMateriels(filteredData);
+        
       } catch (err) {
         console.error('Erreur chargement matériels filtrés:', err);
         toast.error('Erreur lors du chargement des matériels');
@@ -102,13 +156,16 @@ const HistoriqueMateriel = () => {
         setLoadingMateriels(false);
       }
     };
+    
     loadFilteredMateriels();
   }, [selectedBeneficiaire, selectedAchat, selectedType, selectedNumeroSerie]);
 
+  // Fonctions helper pour récupérer les valeurs
   const getType = (materiel) => {
     return materiel.type?.designation || materiel.prix?.designation || materiel.caracteristiques?.['Nature'] || 'N/A';
   };
 
+  // Filtrer les matériels pour la recherche dans le dropdown
   const searchedMateriels = filteredMateriels.filter(materiel => {
     if (!materielSearch.trim()) return true;
     const searchLower = materielSearch.toLowerCase();
@@ -121,6 +178,7 @@ const HistoriqueMateriel = () => {
     );
   });
 
+  // Charger l'historique quand un matériel est sélectionné
   useEffect(() => {
     const loadHistorique = async () => {
       if (!selectedMateriel) {
@@ -248,17 +306,18 @@ const HistoriqueMateriel = () => {
     }
   };
 
+  // Filtrer les listes pour les dropdowns
   const filteredBeneficiaires = beneficiaires.filter(b => {
     const searchLower = beneficiaireSearch.toLowerCase();
     return (b.nom && b.nom.toLowerCase().includes(searchLower)) ||
-      (b.prenom && b.prenom.toLowerCase().includes(searchLower)) ||
-      (b.matricule && b.matricule.toLowerCase().includes(searchLower));
+           (b.prenom && b.prenom.toLowerCase().includes(searchLower)) ||
+           (b.matricule && b.matricule.toLowerCase().includes(searchLower));
   });
 
   const filteredAchats = achats.filter(a => {
     const searchLower = achatSearch.toLowerCase();
     return (a.reference && a.reference.toLowerCase().includes(searchLower)) ||
-      (a.fournisseur?.nom && a.fournisseur.nom.toLowerCase().includes(searchLower));
+           (a.fournisseur?.nom && a.fournisseur.nom.toLowerCase().includes(searchLower));
   });
 
   const filteredTypes = types.filter(t => {
@@ -268,217 +327,20 @@ const HistoriqueMateriel = () => {
 
   const filteredHistorique = filterHistorique();
 
-  // --- NEW FUNCTION: Generate PV PDF ---
-// --- NEW FUNCTION: Generate PV PDF ---
-// --- FUNCTION: Generate PV PDF with dynamic data ---
-const generatePV = (item) => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  
-  // ==========================================
-  // HEADER
-  // ==========================================
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("ORMVAD", 14, 15);
-  doc.setFont("helvetica", "normal");
-  doc.text("SMG/BPI", 14, 21);
-  
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.5);
-  doc.rect(pageWidth - 35, 10, 25, 8);
-  doc.setFontSize(10);
-  doc.text("N°", pageWidth - 22, 16);
-  
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  const titleWidth = doc.getTextWidth("PROCES VERBAL DE PRISE EN CHARGE");
-  const titleX = (pageWidth - titleWidth) / 2;
-  doc.text("PROCES VERBAL DE PRISE EN CHARGE", titleX, 35);
-  doc.setLineWidth(0.5);
-  doc.rect(titleX - 3, 26, titleWidth + 6, 12);
-  
-  // ==========================================
-  // PARTIES SECTION - ✅ DYNAMIC DATA FROM API
-  // ==========================================
-  
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("Entre les soussignés :", 14, 50);
-  
-  // ✅ Helper to format beneficiary name (Nom + Prenom)
-  const formatBeneficiaireNom = (nom, prenom) => {
-    if (nom && prenom) return `${nom.toUpperCase()} ${prenom.toUpperCase()}`;
-    if (nom) return nom.toUpperCase();
-    return "........................";
-  };
-  
-  // L'Expéditeur (Ancien Détenteur) - ✅ Dynamic from item
-  doc.setFont("helvetica", "bold");
-  doc.text("L'Expéditeur :", 20, 60);
-  doc.setFont("helvetica", "normal");
-  
-  const ancienNomComplet = formatBeneficiaireNom(item.ancienBeneficiaireNom, item.ancienBeneficiairePrenom);
-  const ancienDepartement = item.ancienBeneficiaireDepartement || "...........";
-  
-  doc.text(ancienNomComplet, 50, 60);
-  doc.text("Matricule : ...............", 50, 67); // Not in API, keep placeholder
-  doc.text("Code Analytique : ...............", 90, 67);
-  doc.text(`Local. : ${ancienDepartement}`, 150, 67); // Using Departement as Local
-  
-  doc.setFont("helvetica", "italic");
-  doc.text("D'UNE PART", pageWidth - 35, 73);
-  
-  // Le Preneur (Nouveau Détenteur) - ✅ Dynamic from item
-  doc.setFont("helvetica", "bold");
-  doc.text("Le Preneur :", 20, 83);
-  doc.setFont("helvetica", "normal");
-  
-  const nouveauNomComplet = formatBeneficiaireNom(item.nouveauBeneficiaireNom, item.nouveauBeneficiairePrenom);
-  const nouveauDepartement = item.nouveauBeneficiaireDepartement || "...........";
-  
-  doc.text(nouveauNomComplet, 50, 83);
-  doc.text("Matricule : ...............", 50, 90);
-  doc.text("Code Analytique : ...............", 90, 90);
-  doc.text(`Local. : ${nouveauDepartement}`, 150, 90);
-  
-  doc.setFont("helvetica", "italic");
-  doc.text("D'AUTRE PART", pageWidth - 35, 96);
-  
-  // Intro text
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("Le preneur soussigné avoir pris en charge les articles ci-dessous", 14, 106);
-  
-  // ==========================================
-  // TABLE
-  // ==========================================
-  
-  const tableColumn = [
-    "Code Inventaire Origine",
-    "Désignation",
-    "Uté",
-    "Qté",
-    "Prix Unitaire",
-    "Code Inventaire Nouveau"
-  ];
-  
-  const tableRows = [];
-  
-  const materielRow = [
-    selectedMateriel.numeroInventaire || "",
-    `${getType(selectedMateriel)}\nNS: ${selectedMateriel.numeroSerie || ''}`,
-    "U",
-    "01",
-    selectedMateriel.prix?.montant ? `${selectedMateriel.prix.montant} DH` : "",
-    "" // ✅ Left empty as requested
-  ];
-  tableRows.push(materielRow);
-  
-  autoTable(doc, {
-    startY: 110,
-    head: [tableColumn],
-    body: tableRows,
-    theme: 'grid',
-    styles: { 
-      fontSize: 9, 
-      cellPadding: 3,
-      font: 'helvetica',
-      lineColor: [0, 0, 0],
-      lineWidth: 0.5
-    },
-    headStyles: { 
-      fillColor: [255, 255, 255],
-      textColor: [0, 0, 0], 
-      fontStyle: 'bold',
-      halign: 'center',
-      lineWidth: 0.5
-    },
-    bodyStyles: { textColor: [0, 0, 0] },
-    columnStyles: {
-      0: { cellWidth: 40, halign: 'center' }, // Code Inventaire Origine
-      1: { cellWidth: 60, halign: 'left' },   // Désignation
-      2: { cellWidth: 15, halign: 'center' }, // Uté
-      3: { cellWidth: 15, halign: 'center' }, // Qté
-      4: { cellWidth: 25, halign: 'right' },  // Prix Unitaire
-      5: { cellWidth: 40, halign: 'center' }  // Code Inventaire Nouveau (empty)
-    },
-    margin: { left: 10, right: 10 }
-  });
-  
-  // ==========================================
-  // FOOTER SECTION
-  // ==========================================
-  
-  const finalY = doc.lastAutoTable?.finalY || 150;
-  
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text("Etat des articles Mutés :", 14, finalY + 10);
-  doc.setLineWidth(0.25);
-  doc.setDrawColor(150);
-  doc.line(50, finalY + 10, pageWidth - 20, finalY + 10);
-  doc.line(14, finalY + 18, pageWidth - 20, finalY + 18);
-  doc.line(14, finalY + 26, pageWidth - 20, finalY + 26);
-  
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "italic");
-  doc.setTextColor(80);
-  
-  const notaText1 = "NOTA : Aucun mouvement de mobilier ou de matériel ... etc. ne peut être effectué sans avis préalable du responsable du patrimoine.";
-  const notaText2 = "En cas de perte le détenteur de l'objet se trouve dans l'obligation de le remplacer.";
-  
-  doc.text(notaText1, 14, finalY + 38, { maxWidth: pageWidth - 34 });
-  doc.text(notaText2, 14, finalY + 43, { maxWidth: pageWidth - 34 });
-  
-  doc.setTextColor(0);
-  
-  // Date
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  const dateStr = item.dateOperation ? format(new Date(item.dateOperation), 'dd/MM/yyyy') : '.../.../......';
-  doc.text(`Fait à : .................... Le ${dateStr}`, 14, finalY + 55);
-  
-  // ==========================================
-  // SIGNATURE SECTIONS
-  // ==========================================
-  
-  const signY = finalY + 70;
-  const signWidth = 45;
-  
-  doc.setLineWidth(0.25);
-  doc.setDrawColor(0);
-  
-  // L'EXPEDITEUR
-  doc.line(14, signY, 14 + signWidth, signY);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text("L'EXPEDITEUR", 14 + signWidth/2, signY + 8, { align: 'center' });
-  
-  // LE REPRESENTANT DU BPI
-  const middleX = pageWidth / 2;
-  doc.line(middleX - signWidth/2, signY, middleX + signWidth/2, signY);
-  doc.text("LE REPRESENTANT DU BPI", middleX, signY + 8, { align: 'center' });
-  
-  // LE PRENEUR
-  const rightX = pageWidth - 20 - signWidth;
-  doc.line(rightX, signY, rightX + signWidth, signY);
-  doc.text("LE PRENEUR", rightX + signWidth/2, signY + 8, { align: 'center' });
-  
-  // ==========================================
-  // SAVE PDF
-  // ==========================================
-  
-  const fileName = selectedMateriel.numeroInventaire 
-    ? `PV_Reaffectation_${selectedMateriel.numeroInventaire}.pdf`
-    : `PV_Reaffectation_Materiel.pdf`;
-  
-  doc.save(fileName);
-};
-
+  // Composant Dropdown réutilisable
   const FilterDropdown = ({
-    icon: Icon, title, selected, dropdownOpen, setDropdownOpen, searchValue, setSearchValue,
-    filteredList, onSelect, onClear, displayField, placeholder
+    icon: Icon,
+    title,
+    selected,
+    dropdownOpen,
+    setDropdownOpen,
+    searchValue,
+    setSearchValue,
+    filteredList,
+    onSelect,
+    onClear,
+    displayField,
+    placeholder
   }) => (
     <div className="relative">
       <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -551,7 +413,7 @@ const generatePV = (item) => {
   );
 
   return (
-  <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+    <div className="max-w-7xl mx-auto p-6">
       {/* En-tête */}
       <div className="bg-white rounded-xl shadow-md p-6 mb-6 border border-gray-200">
         <div className="flex items-center mb-6">
@@ -563,7 +425,8 @@ const generatePV = (item) => {
             <p className="text-gray-600">Suivez l'historique complet des attributions de chaque matériel</p>
           </div>
         </div>
-        {/* ... (Rest of the Filter Section code remains exactly the same as your original file) ... */}
+
+        {/* Bouton Filtres */}
         <div className="mb-6">
           <button
             onClick={() => setShowFilters(!showFilters)}
@@ -582,6 +445,8 @@ const generatePV = (item) => {
             )}
           </button>
         </div>
+
+        {/* Section des filtres */}
         {showFilters && (
           <div className="bg-gray-50 rounded-xl p-6 mb-6 border border-gray-200">
             <div className="flex justify-between items-center mb-6">
@@ -597,77 +462,112 @@ const generatePV = (item) => {
                 Réinitialiser
               </button>
             </div>
+
+            {/* Grille des filtres */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              
               <FilterDropdown
-                icon={FiUser} title="Bénéficiaire" selected={selectedBeneficiaire}
-                dropdownOpen={showBeneficiaireDropdown} setDropdownOpen={setShowBeneficiaireDropdown}
-                searchValue={beneficiaireSearch} setSearchValue={setBeneficiaireSearch}
-                filteredList={filteredBeneficiaires} onSelect={setSelectedBeneficiaire}
+                icon={FiUser}
+                title="Bénéficiaire"
+                selected={selectedBeneficiaire}
+                dropdownOpen={showBeneficiaireDropdown}
+                setDropdownOpen={setShowBeneficiaireDropdown}
+                searchValue={beneficiaireSearch}
+                setSearchValue={setBeneficiaireSearch}
+                filteredList={filteredBeneficiaires}
+                onSelect={setSelectedBeneficiaire}
                 onClear={() => setSelectedBeneficiaire(null)}
                 displayField={(item) => `${item.nom} ${item.prenom}`}
                 placeholder="Sélectionner un bénéficiaire..."
               />
+              
               <FilterDropdown
-                icon={FiShoppingCart} title="Achat" selected={selectedAchat}
-                dropdownOpen={showAchatDropdown} setDropdownOpen={setShowAchatDropdown}
-                searchValue={achatSearch} setSearchValue={setAchatSearch}
-                filteredList={filteredAchats} onSelect={setSelectedAchat}
+                icon={FiShoppingCart}
+                title="Achat"
+                selected={selectedAchat}
+                dropdownOpen={showAchatDropdown}
+                setDropdownOpen={setShowAchatDropdown}
+                searchValue={achatSearch}
+                setSearchValue={setAchatSearch}
+                filteredList={filteredAchats}
+                onSelect={setSelectedAchat}
                 onClear={() => setSelectedAchat(null)}
                 displayField={(item) => item.reference || `Achat #${item.id}`}
                 placeholder="Sélectionner un achat..."
               />
+              
               <FilterDropdown
-                icon={FiLayers} title="Type" selected={selectedType}
-                dropdownOpen={showTypeDropdown} setDropdownOpen={setShowTypeDropdown}
-                searchValue={typeSearch} setSearchValue={setTypeSearch}
-                filteredList={filteredTypes} onSelect={setSelectedType}
+                icon={FiLayers}
+                title="Type"
+                selected={selectedType}
+                dropdownOpen={showTypeDropdown}
+                setDropdownOpen={setShowTypeDropdown}
+                searchValue={typeSearch}
+                setSearchValue={setTypeSearch}
+                filteredList={filteredTypes}
+                onSelect={setSelectedType}
                 onClear={() => setSelectedType(null)}
                 displayField={(item) => item.designation}
                 placeholder="Sélectionner un type..."
               />
+              
+              {/* N° Série - Input texte */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                   <FiHash className="text-indigo-500" size={16} />
                   Numéro de Série
                 </label>
                 <input
-                  type="text" value={selectedNumeroSerie}
+                  type="text"
+                  value={selectedNumeroSerie}
                   onChange={(e) => setSelectedNumeroSerie(e.target.value)}
                   placeholder="Rechercher par N° Série..."
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
             </div>
+
+            {/* Indicateurs de filtres actifs */}
             {getActiveFiltersCount() > 0 && (
               <div className="mt-6 pt-4 border-t border-gray-200">
-                <p className="text-sm text-indigo-700 font-medium mb-3">Filtres actifs ({getActiveFiltersCount()}):</p>
+                <p className="text-sm text-indigo-700 font-medium mb-3">
+                  Filtres actifs ({getActiveFiltersCount()}):
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {selectedBeneficiaire && (
                     <span className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium flex items-center gap-1">
                       <FiUser size={12} />
                       {selectedBeneficiaire.nom} {selectedBeneficiaire.prenom}
-                      <button onClick={() => setSelectedBeneficiaire(null)} className="ml-1 hover:text-indigo-600"><FiX size={12} /></button>
+                      <button onClick={() => setSelectedBeneficiaire(null)} className="ml-1 hover:text-indigo-600">
+                        <FiX size={12} />
+                      </button>
                     </span>
                   )}
                   {selectedAchat && (
                     <span className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium flex items-center gap-1">
                       <FiShoppingCart size={12} />
                       {selectedAchat.reference || `#${selectedAchat.id}`}
-                      <button onClick={() => setSelectedAchat(null)} className="ml-1 hover:text-indigo-600"><FiX size={12} /></button>
+                      <button onClick={() => setSelectedAchat(null)} className="ml-1 hover:text-indigo-600">
+                        <FiX size={12} />
+                      </button>
                     </span>
                   )}
                   {selectedType && (
                     <span className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium flex items-center gap-1">
                       <FiLayers size={12} />
                       {selectedType.designation}
-                      <button onClick={() => setSelectedType(null)} className="ml-1 hover:text-indigo-600"><FiX size={12} /></button>
+                      <button onClick={() => setSelectedType(null)} className="ml-1 hover:text-indigo-600">
+                        <FiX size={12} />
+                      </button>
                     </span>
                   )}
                   {selectedNumeroSerie && selectedNumeroSerie.trim() && (
                     <span className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium flex items-center gap-1">
                       <FiHash size={12} />
                       {selectedNumeroSerie}
-                      <button onClick={() => setSelectedNumeroSerie('')} className="ml-1 hover:text-indigo-600"><FiX size={12} /></button>
+                      <button onClick={() => setSelectedNumeroSerie('')} className="ml-1 hover:text-indigo-600">
+                        <FiX size={12} />
+                      </button>
                     </span>
                   )}
                 </div>
@@ -675,142 +575,188 @@ const generatePV = (item) => {
             )}
           </div>
         )}
-      </div>
 
-      {/* Sélection du matériel */}
-      <div className="mb-6">
-        <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-          <span className="bg-indigo-100 text-indigo-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">
-            {showFilters ? '3' : '1'}
-          </span>
-          Sélectionnez un matériel
-          {getActiveFiltersCount() > 0 && (
-            <span className="ml-2 text-xs text-indigo-600">({filteredMateriels.length} résultats)</span>
-          )}
-        </h3>
-        {/* ... (Dropdown code remains same) ... */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowMaterielDropdown(!showMaterielDropdown)}
-            className={`w-full p-4 border rounded-xl text-left flex justify-between items-center transition-all ${
-              selectedMateriel ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            <div className="flex items-center">
-              <FiPackage className="mr-3 text-indigo-500" />
-              <div>
-                {selectedMateriel ? (
-                  <>
-                    <div className="font-medium text-gray-800">
-                      {selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`}
-                    </div>
-                    <div className="text-sm text-gray-600 flex items-center">
-                      <span className="mr-3">{getType(selectedMateriel)}</span>
-                      {selectedMateriel.numeroSerie && (
-                        <span className="flex items-center"><FiTag className="mr-1" size={12} />{selectedMateriel.numeroSerie}</span>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <span className="text-gray-500">Cliquez pour sélectionner un matériel...</span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center">
-              {selectedMateriel && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); clearMaterielSelection(); }} className="mr-2 text-gray-400 hover:text-gray-600"><FiX size={18} /></button>
-              )}
-              <FiChevronDown className={`transition-transform ${showMaterielDropdown ? 'rotate-180' : ''}`} />
-            </div>
-          </button>
-          {showMaterielDropdown && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-96 overflow-y-auto">
-              <div className="p-3 border-b">
-                <div className="relative">
-                  <input
-                    type="text" value={materielSearch} onChange={(e) => setMaterielSearch(e.target.value)}
-                    placeholder="Rechercher par n° inventaire, série, type, bénéficiaire..."
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    autoFocus
-                  />
-                  <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
+        {/* Sélection du matériel avec dropdown amélioré */}
+        <div className="mb-6">
+          <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
+            <span className="bg-indigo-100 text-indigo-800 w-8 h-8 rounded-full flex items-center justify-center mr-2">
+              {showFilters ? '3' : '1'}
+            </span>
+            Sélectionnez un matériel
+            {getActiveFiltersCount() > 0 && (
+              <span className="ml-2 text-xs text-indigo-600">
+                ({filteredMateriels.length} résultats)
+              </span>
+            )}
+          </h3>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowMaterielDropdown(!showMaterielDropdown)}
+              className={`w-full p-4 border rounded-xl text-left flex justify-between items-center transition-all ${
+                selectedMateriel
+                  ? 'border-indigo-500 bg-indigo-50'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <div className="flex items-center">
+                <FiPackage className="mr-3 text-indigo-500" />
+                <div>
+                  {selectedMateriel ? (
+                    <>
+                      <div className="font-medium text-gray-800">
+                        {selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`}
+                      </div>
+                      <div className="text-sm text-gray-600 flex items-center">
+                        <span className="mr-3">{getType(selectedMateriel)}</span>
+                        {selectedMateriel.numeroSerie && (
+                          <span className="flex items-center">
+                            <FiTag className="mr-1" size={12} />
+                            {selectedMateriel.numeroSerie}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-gray-500">Cliquez pour sélectionner un matériel...</span>
+                  )}
                 </div>
-                <div className="mt-2 text-xs text-gray-500">{filteredMateriels.length} matériel(s) disponible(s)</div>
               </div>
-              <div className="py-2">
-                {loadingMateriels ? (
-                  <div className="p-4 text-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
-                    <p className="mt-2 text-sm text-gray-500">Chargement des matériels...</p>
+              <div className="flex items-center">
+                {selectedMateriel && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); clearMaterielSelection(); }}
+                    className="mr-2 text-gray-400 hover:text-gray-600"
+                  >
+                    <FiX size={18} />
+                  </button>
+                )}
+                <FiChevronDown className={`transition-transform ${showMaterielDropdown ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+            {showMaterielDropdown && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-xl shadow-lg max-h-96 overflow-y-auto">
+                <div className="p-3 border-b">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={materielSearch}
+                      onChange={(e) => setMaterielSearch(e.target.value)}
+                      placeholder="Rechercher par n° inventaire, série, type, bénéficiaire..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      autoFocus
+                    />
+                    <FiSearch className="absolute left-3 top-2.5 text-gray-400" />
                   </div>
-                ) : searchedMateriels.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    {materielSearch.trim() === '' ? 'Aucun matériel disponible' : `Aucun matériel trouvé pour "${materielSearch}"`}
+                  <div className="mt-2 text-xs text-gray-500">
+                    {filteredMateriels.length} matériel(s) disponible(s)
                   </div>
-                ) : (
-                  searchedMateriels.map(materiel => (
-                    <div
-                      key={materiel.id}
-                      onClick={() => { setSelectedMateriel(materiel); setShowMaterielDropdown(false); setMaterielSearch(''); }}
-                      className={`px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
-                        selectedMateriel?.id === materiel.id ? 'bg-indigo-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-start">
-                        <div className="mr-3 mt-1"><FiPackage className="text-indigo-500" /></div>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start">
-                            <div className="font-medium text-gray-800">
-                              {materiel.numeroInventaire || `Matériel #${materiel.id}`}
-                              {materiel.numeroSerie && (
-                                <span className="ml-2 text-sm text-gray-600 flex items-center"><FiTag className="mr-1" size={12} />{materiel.numeroSerie}</span>
-                              )}
-                            </div>
-                            <span className={`px-2 py-1 text-xs rounded-full ${getEtatColor(materiel.etat)}`}>{materiel.etat || 'N/A'}</span>
+                </div>
+                <div className="py-2">
+                  {loadingMateriels ? (
+                    <div className="p-4 text-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+                      <p className="mt-2 text-sm text-gray-500">Chargement des matériels...</p>
+                    </div>
+                  ) : searchedMateriels.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      {materielSearch.trim() === ''
+                        ? 'Aucun matériel disponible'
+                        : `Aucun matériel trouvé pour "${materielSearch}"`}
+                    </div>
+                  ) : (
+                    searchedMateriels.map(materiel => (
+                      <div
+                        key={materiel.id}
+                        onClick={() => {
+                          setSelectedMateriel(materiel);
+                          setShowMaterielDropdown(false);
+                          setMaterielSearch('');
+                        }}
+                        className={`px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                          selectedMateriel?.id === materiel.id ? 'bg-indigo-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-start">
+                          <div className="mr-3 mt-1">
+                            <FiPackage className="text-indigo-500" />
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            <div className="flex flex-wrap gap-2">
-                              {getType(materiel) !== 'N/A' && (
-                                <span className="flex items-center"><FiPackage className="mr-1" size={12} />{getType(materiel)}</span>
-                              )}
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <div className="font-medium text-gray-800">
+                                {materiel.numeroInventaire || `Matériel #${materiel.id}`}
+                                {materiel.numeroSerie && (
+                                  <span className="ml-2 text-sm text-gray-600 flex items-center">
+                                    <FiTag className="mr-1" size={12} />
+                                    {materiel.numeroSerie}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`px-2 py-1 text-xs rounded-full ${getEtatColor(materiel.etat)}`}>
+                                {materiel.etat || 'N/A'}
+                              </span>
                             </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              <div className="flex flex-wrap gap-2">
+                                {getType(materiel) !== 'N/A' && (
+                                  <span className="flex items-center">
+                                    <FiPackage className="mr-1" size={12} />
+                                    {getType(materiel)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {materiel.beneficiaire && (
+                              <div className="mt-2 text-xs text-gray-500 flex items-center">
+                                <FiUser className="mr-1" size={12} />
+                                <span className="font-medium">
+                                  {materiel.beneficiaire.nom} {materiel.beneficiaire.prenom}
+                                </span>
+                                {materiel.beneficiaire.matricule && (
+                                  <span className="ml-2">({materiel.beneficiaire.matricule})</span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          {materiel.beneficiaire && (
-                            <div className="mt-2 text-xs text-gray-500 flex items-center">
-                              <FiUser className="mr-1" size={12} />
-                              <span className="font-medium">{materiel.beneficiaire.nom} {materiel.beneficiaire.prenom}</span>
-                              {materiel.beneficiaire.matricule && (<span className="ml-2">({materiel.beneficiaire.matricule})</span>)}
+                          {selectedMateriel?.id === materiel.id && (
+                            <div className="ml-2">
+                              <FiCheck className="text-green-500" />
                             </div>
                           )}
                         </div>
-                        {selectedMateriel?.id === materiel.id && (<div className="ml-2"><FiCheck className="text-green-500" /></div>)}
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          {selectedMateriel && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <FiCheck className="text-green-500 mr-2" />
+                <div className="flex-1">
+                  <span className="font-medium text-green-800">Matériel sélectionné:</span>
+                  <div className="text-sm text-green-700 grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
+                    <div><span className="font-medium">N° Inventaire:</span> {selectedMateriel.numeroInventaire || 'Non défini'}</div>
+                    <div><span className="font-medium">Type:</span> {getType(selectedMateriel)}</div>
+                    <div><span className="font-medium">N° Série:</span> {selectedMateriel.numeroSerie || 'N/A'}</div>
+                    <div><span className="font-medium">État:</span> {selectedMateriel.etat || 'N/A'}</div>
+                    <div><span className="font-medium">Bénéficiaire:</span> {selectedMateriel.beneficiaire ? ` ${selectedMateriel.beneficiaire.nom} ${selectedMateriel.beneficiaire.prenom}` : ' Non attribué'}</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMaterielDropdown(true)}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  Changer
+                </button>
               </div>
             </div>
           )}
         </div>
-        {selectedMateriel && (
-          <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center">
-              <FiCheck className="text-green-500 mr-2" />
-              <div className="flex-1">
-                <span className="font-medium text-green-800">Matériel sélectionné:</span>
-                <div className="text-sm text-green-700 grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
-                  <div><span className="font-medium">N° Inventaire:</span> {selectedMateriel.numeroInventaire || 'Non défini'}</div>
-                  <div><span className="font-medium">Type:</span> {getType(selectedMateriel)}</div>
-                  <div><span className="font-medium">N° Série:</span> {selectedMateriel.numeroSerie || 'N/A'}</div>
-                  <div><span className="font-medium">État:</span> {selectedMateriel.etat || 'N/A'}</div>
-                  <div><span className="font-medium">Bénéficiaire:</span> {selectedMateriel.beneficiaire ? ` ${selectedMateriel.beneficiaire.nom} ${selectedMateriel.beneficiaire.prenom}` : ' Non attribué'}</div>
-                </div>
-              </div>
-              <button type="button" onClick={() => setShowMaterielDropdown(true)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Changer</button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Statistiques */}
@@ -818,26 +764,46 @@ const generatePV = (item) => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
             <div className="flex items-center">
-              <div className="bg-indigo-100 p-2 rounded-lg mr-3"><FiClock className="text-indigo-600" /></div>
-              <div><p className="text-sm text-gray-500">Total des opérations</p><p className="text-2xl font-bold text-gray-800">{stats.totalOperations}</p></div>
+              <div className="bg-indigo-100 p-2 rounded-lg mr-3">
+                <FiClock className="text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Total des opérations</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.totalOperations}</p>
+              </div>
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
             <div className="flex items-center">
-              <div className="bg-green-100 p-2 rounded-lg mr-3"><FiUser className="text-green-600" /></div>
-              <div><p className="text-sm text-gray-500">Attributions initiales</p><p className="text-2xl font-bold text-gray-800">{stats.attributions}</p></div>
+              <div className="bg-green-100 p-2 rounded-lg mr-3">
+                <FiUser className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Attributions initiales</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.attributions}</p>
+              </div>
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
             <div className="flex items-center">
-              <div className="bg-blue-100 p-2 rounded-lg mr-3"><FiArrowRight className="text-blue-600" /></div>
-              <div><p className="text-sm text-gray-500">Réaffectations</p><p className="text-2xl font-bold text-gray-800">{stats.reaffectations}</p></div>
+              <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                <FiArrowRight className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Réaffectations</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.reaffectations}</p>
+              </div>
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
             <div className="flex items-center">
-              <div className="bg-orange-100 p-2 rounded-lg mr-3"><FiPackage className="text-orange-600" /></div>
-              <div><p className="text-sm text-gray-500">Libérations</p><p className="text-2xl font-bold text-gray-800">{stats.liberations}</p></div>
+              <div className="bg-orange-100 p-2 rounded-lg mr-3">
+                <FiPackage className="text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Libérations</p>
+                <p className="text-2xl font-bold text-gray-800">{stats.liberations}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -856,7 +822,9 @@ const generatePV = (item) => {
             <div className="flex-1">
               <div className="relative">
                 <input
-                  type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Rechercher dans l'historique..."
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
@@ -866,7 +834,7 @@ const generatePV = (item) => {
             <div className="flex flex-wrap gap-3">
               <select
                 value={filters.typeOperation}
-                onChange={(e) => setFilters({ ...filters, typeOperation: e.target.value })}
+                onChange={(e) => setFilters({...filters, typeOperation: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="all">Tous les types</option>
@@ -875,17 +843,24 @@ const generatePV = (item) => {
                 <option value="LIBERATION">Libérations</option>
               </select>
               <input
-                type="date" value={filters.dateFrom}
-                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Date de début"
               />
               <input
-                type="date" value={filters.dateTo}
-                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Date de fin"
               />
               <button
-                onClick={() => { setFilters({ typeOperation: 'all', dateFrom: '', dateTo: '' }); setSearchTerm(''); }}
+                onClick={() => {
+                  setFilters({ typeOperation: 'all', dateFrom: '', dateTo: '' });
+                  setSearchTerm('');
+                }}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center"
               >
                 <FiFilter className="mr-2" />
@@ -907,8 +882,12 @@ const generatePV = (item) => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-200 bg-gray-50">
               <div className="flex justify-between items-center">
-                <h3 className="font-semibold text-gray-800">Historique ({filteredHistorique.length} opérations)</h3>
-                <span className="text-sm text-gray-500">{selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`}</span>
+                <h3 className="font-semibold text-gray-800">
+                  Historique ({filteredHistorique.length} opérations)
+                </h3>
+                <span className="text-sm text-gray-500">
+                  {selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`}
+                </span>
               </div>
             </div>
             <div className="divide-y divide-gray-200">
@@ -926,23 +905,9 @@ const generatePV = (item) => {
                           </span>
                           <h4 className="font-medium text-gray-800 mt-1">{item.description}</h4>
                         </div>
-                        <div className="flex items-center mt-2 md:mt-0 gap-4">
-                          <div className="flex items-center">
-                            <FiCalendar className="text-gray-400 mr-1" size={14} />
-                            <span className="text-sm text-gray-500">{formatDate(item.dateOperation)}</span>
-                          </div>
-                          
-                          {/* NEW BUTTON: Only show for REAFFECTATION */}
-                          {item.typeOperation === 'REAFFECTATION' && (
-                            <button
-                              onClick={() => generatePV(item)}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-md hover:bg-indigo-700 transition-colors shadow-sm"
-                              title="Télécharger le PV de Prise en Charge"
-                            >
-                              <FiDownload size={14} />
-                              <span className="hidden sm:inline">Télécharger PV</span>
-                            </button>
-                          )}
+                        <div className="flex items-center mt-2 md:mt-0">
+                          <FiCalendar className="text-gray-400 mr-1" size={14} />
+                          <span className="text-sm text-gray-500">{formatDate(item.dateOperation)}</span>
                         </div>
                       </div>
                       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
