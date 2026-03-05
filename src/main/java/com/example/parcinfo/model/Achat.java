@@ -26,6 +26,8 @@ public class Achat {
     @Column(nullable = false, unique = true)
     private String reference;
 
+    private String exercice;
+
     @NotNull(message = "La date est obligatoire")
     private LocalDate date;
 

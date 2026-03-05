@@ -330,4 +330,86 @@ public class MaterialController {
         List<Material> materiels = materialService.getMaterielsByPrix(prixId);
         return ResponseEntity.ok(materiels);
     }
+
+    @GetMapping("/prix/{prixId}/sans-inventaire")
+    public ResponseEntity<List<Material>> getMaterielsSansInventaire(@PathVariable Long prixId) {
+        List<Material> materiels = materialService.getMaterielsSansInventaireByPrix(prixId);
+        return ResponseEntity.ok(materiels);
+    }
+
+    /**
+     * PUT /api/materiels/prix/{prixId}/inventaire
+     * Met à jour les numéros d'inventaire par numéro de série
+     */
+    @PutMapping("/prix/{prixId}/inventaire")
+    public ResponseEntity<InventaireUpdateResult> updateNumerosInventaire(
+            @PathVariable Long prixId,
+            @RequestBody List<MaterielInventaireDTO> updates) {
+
+        if (updates == null || updates.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        InventaireUpdateResult result = materialService.updateNumerosInventaire(prixId, updates);
+
+        if (!result.getErrors().isEmpty()) {
+            return ResponseEntity
+                    .status(result.getUpdatedCount() > 0 ? 207 : 400) // Multi-Status ou Bad Request
+                    .body(result);
+        }
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * GET /api/materiels/achat/{achatId}/template-inventaire
+     * Export des données pour template Excel (tous les prix de l'achat)
+     */
+    @GetMapping("/achat/{achatId}/template-inventaire")
+    public ResponseEntity<List<Map<String, Object>>> exportTemplateInventaire(@PathVariable Long achatId) {
+        List<Map<String, Object>> data = materialService.getTemplateDataForAchat(achatId);
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/json") // Frontend gérera la conversion Excel
+                .body(data);
+    }
+
+    @GetMapping("/prix/{prixId}/preparation")
+    public ResponseEntity<MaterielsPreparationResponse> getMaterielsPreparation(
+            @PathVariable Long prixId) {
+
+        MaterielsPreparationResponse response =
+                materialService.getMaterielsPreparationByPrix(prixId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/achat/{achatId}/beneficiaire/{beneficiaireId}/avec-serie")
+    public ResponseEntity<List<Material>> getMaterielsWithSerial(
+            @PathVariable Long achatId,
+            @PathVariable Long beneficiaireId) {
+
+        List<Material> materiels = materialService
+                .getMaterielsByAchatAndBeneficiaireWithSerial(achatId, beneficiaireId);
+        return ResponseEntity.ok(materiels);
+    }
+
+    @PutMapping("/achat/{achatId}/beneficiaire/{beneficiaireId}/inventaire")
+    public ResponseEntity<InventaireUpdateResult> updateInventaireBatch(
+            @PathVariable Long achatId,
+            @PathVariable Long beneficiaireId,
+            @RequestBody List<MaterielInventaireDTO> updates) {
+
+        if (updates == null || updates.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        InventaireUpdateResult result = materialService
+                .updateNumerosInventaireBatch(achatId, beneficiaireId, updates);
+
+        if (!result.getErrors().isEmpty()) {
+            return ResponseEntity.status(result.getUpdatedCount() > 0 ? 207 : 400).body(result);
+        }
+
+        return ResponseEntity.ok(result);
+    }
 }

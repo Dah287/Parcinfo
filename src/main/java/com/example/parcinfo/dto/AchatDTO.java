@@ -19,6 +19,8 @@ public class AchatDTO {
     @NotBlank(message = "La référence est obligatoire")
     private String reference;
 
+    private String exercice;
+
     @NotNull(message = "La date est obligatoire")
     private LocalDate date;
 
@@ -42,6 +44,7 @@ public class AchatDTO {
                 .date(date)
                 .tauxTva(tauxTva)
                 .type(type)
+                .exercice(exercice)
                 .observations(observations)
                 .build();
     }

@@ -1,6 +1,5 @@
 package com.example.parcinfo.dto;
 
-
 import com.example.parcinfo.model.Material;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -17,13 +16,16 @@ public class MaterialDTO {
 
     private String numeroInventaire; // Optionnel
 
-    private String numeroSerie; // Nouveau champ
+    private String numeroSerie; // Numéro de série du matériel principal
+
+    // NOUVEAU: Numéro de série de l'écran
+    private String numeroSerieEcran;
 
     @NotNull(message = "Le type de matériel est obligatoire")
     private Long typeId;
 
     private Long marqueId;
-
+    private String exercice;
     private Long beneficiaireId;
 
     private Long fournisseurId;
@@ -39,9 +41,11 @@ public class MaterialDTO {
         return Material.builder()
                 .numeroInventaire(numeroInventaire)
                 .numeroSerie(numeroSerie)
+                .numeroSerieEcran(numeroSerieEcran) // NOUVEAU
                 .etat(etat != null ? etat : Material.EtatMateriel.DISPONIBLE)
                 .caracteristiques(caracteristiques != null ? caracteristiques : new HashMap<>())
                 .observations(observations)
+                .exercice(exercice)
                 .build();
     }
 }

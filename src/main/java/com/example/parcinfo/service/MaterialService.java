@@ -1,8 +1,7 @@
 package com.example.parcinfo.service;
 
-import com.example.parcinfo.dto.AffectationCompleteDTO;
-import com.example.parcinfo.dto.AttributionMaterialDTO;
-import com.example.parcinfo.dto.MaterielPreparationDTO;
+import com.example.parcinfo.controller.MaterielsPreparationResponse;
+import com.example.parcinfo.dto.*;
 import com.example.parcinfo.model.Material;
 import com.example.parcinfo.model.Beneficiaire;
 import com.example.parcinfo.model.Prix;
@@ -23,10 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.apache.poi.ss.usermodel.Cell;
@@ -307,83 +303,247 @@ public class MaterialService {
     @Transactional
     public List<Material> preparerMateriels(Long prixId, List<MaterielPreparationDTO> preparationData) {
 
-        // Récupérer le prix
         Prix prix = prixRepository.findById(prixId)
-                .orElseThrow(() -> new RuntimeException("Prix non trouvé avec l'ID: " + prixId));
+                .orElseThrow(() -> new RuntimeException("Prix non trouvé: " + prixId));
 
-        // Vérifier que le nombre de matériels correspond à la quantité du prix
-        if (preparationData.size() != prix.getQuantite()) {
-            throw new RuntimeException(
-                    String.format("Le nombre de matériels (%d) ne correspond pas à la quantité du prix (%d)",
-                            preparationData.size(), prix.getQuantite())
-            );
+        // 🔁 Permettre les mises à jour partielles : ne pas vérifier la quantité exacte
+        // if (preparationData.size() != prix.getQuantite()) { ... } // ← SUPPRIMÉ
+
+        List<Material> materielsExistants = materialRepository.findByPrixIdOrdered(prixId);
+
+        // Map pour lookup rapide par index ou par série existante
+        Map<Integer, Material> byIndex = new HashMap<>();
+        Map<String, Material> bySerie = new HashMap<>();
+
+        for (int i = 0; i < materielsExistants.size(); i++) {
+            Material m = materielsExistants.get(i);
+            byIndex.put(i, m);
+            if (m.getNumeroSerie() != null) {
+                bySerie.put(m.getNumeroSerie(), m);
+            }
         }
 
-        List<Material> materielsPrepares = new ArrayList<>();
+        List<Material> result = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
 
-        // Récupérer les matériels existants pour ce prix
-        List<Material> materielsExistants = materialRepository.findByPrixId(prixId);
-
-        // Vérifier qu'il y a assez de matériels disponibles
-        if (materielsExistants.size() < preparationData.size()) {
-            // Si pas assez, on peut en créer automatiquement via MaterialGenerationService
-            // Ou on lance une erreur selon votre logique métier
-            throw new RuntimeException(
-                    String.format("Pas assez de matériels disponibles. Existants: %d, Demandés: %d",
-                            materielsExistants.size(), preparationData.size())
-            );
-        }
-
-        // Parcourir les données de préparation et mettre à jour les matériels
         for (int i = 0; i < preparationData.size(); i++) {
             MaterielPreparationDTO dto = preparationData.get(i);
 
-            // Récupérer le matériel correspondant (soit par index, soit par logique métier)
-            // Ici on suppose qu'on utilise les matériels dans l'ordre
-            Material materiel = materielsExistants.get(i);
-
-            // Vérifier l'unicité du numéro de série si fourni
-            if (dto.getNumeroSerie() != null && !dto.getNumeroSerie().isEmpty()) {
-                if (materialRepository.existsByNumeroSerie(dto.getNumeroSerie())) {
-                    throw new RuntimeException(
-                            "Le numéro de série '" + dto.getNumeroSerie() + "' est déjà utilisé"
-                    );
-                }
-                materiel.setNumeroSerie(dto.getNumeroSerie());
+            if (dto.getNumeroSerie() == null || dto.getNumeroSerie().isBlank()) {
+                errors.add("Ligne " + (i+1) + ": N° Série Matériel requis");
+                continue;
             }
 
-            // Vérifier l'unicité du numéro d'inventaire si fourni
-            if (dto.getNumeroInventaire() != null && !dto.getNumeroInventaire().isEmpty()) {
-                if (materialRepository.existsByNumeroInventaire(dto.getNumeroInventaire())) {
-                    throw new RuntimeException(
-                            "Le numéro d'inventaire '" + dto.getNumeroInventaire() + "' est déjà utilisé"
-                    );
-                }
-                materiel.setNumeroInventaire(dto.getNumeroInventaire());
+            // 🔍 Trouver le matériel : par index d'abord, puis par série existante
+            Material materiel = byIndex.get(i);
+            if (materiel == null) {
+                materiel = bySerie.get(dto.getNumeroSerie());
+            }
+            if (materiel == null) {
+                errors.add("Ligne " + (i+1) + ": Matériel non trouvé pour série: " + dto.getNumeroSerie());
+                continue;
             }
 
-            // Mettre à jour les observations
+            // ✅ Valider et mettre à jour N° Série Matériel
+            String newSerie = dto.getNumeroSerie().trim().toUpperCase();
+            if (!newSerie.equals(materiel.getNumeroSerie())) {
+                if (materialRepository.existsByNumeroSerieAndIdNot(newSerie, materiel.getId())) {
+                    errors.add("N° Série '" + newSerie + "' déjà utilisé (ligne " + (i+1) + ")");
+                    continue;
+                }
+                materiel.setNumeroSerie(newSerie);
+            }
+
+            // ✅ Valider et mettre à jour N° Série Écran (optionnel)
+            if (dto.getNumeroSerieEcran() != null && !dto.getNumeroSerieEcran().isBlank()) {
+                String newEcran = dto.getNumeroSerieEcran().trim().toUpperCase();
+                if (!newEcran.equals(materiel.getNumeroSerieEcran())) {
+                    if (materialRepository.existsByNumeroSerieEcranAndIdNot(newEcran, materiel.getId())) {
+                        errors.add("N° Série Écran '" + newEcran + "' déjà utilisé (ligne " + (i+1) + ")");
+                        continue;
+                    }
+                    materiel.setNumeroSerieEcran(newEcran);
+                }
+            }
+
+            // ✅ Observations
             if (dto.getObservations() != null) {
                 materiel.setObservations(dto.getObservations());
             }
 
-            // Si au moins un numéro a été assigné, on considère le matériel comme préparé
-            if (dto.getNumeroSerie() != null || dto.getNumeroInventaire() != null) {
-                // Optionnel: changer l'état si nécessaire
-                // materiel.setEtat(Material.EtatMateriel.PREPARE);
-            }
-
-            Material saved = materialRepository.save(materiel);
-            materielsPrepares.add(saved);
+          //  materiel.setDatePreparation(new Date()); // Optionnel : timestamp
+            result.add(materialRepository.save(materiel));
         }
 
-        return materielsPrepares;
-    }
+        if (!errors.isEmpty()) {
+            throw new RuntimeException("Erreurs de validation: " + String.join("; ", errors));
+        }
 
+        return result;
+    }
     /**
      * Récupérer les matériels par ID de prix
      */
     public List<Material> getMaterielsByPrix(Long prixId) {
         return materialRepository.findByPrixId(prixId);
     }
+
+
+    public List<Material> getMaterielsSansInventaireByPrix(Long prixId) {
+        return materialRepository.findByPrixIdWithoutInventaire(prixId);
+    }
+
+    /**
+     * Met à jour les numéros d'inventaire pour des matériels d'un prix
+     * Basé sur le numéro de série comme clé d'identification
+     */
+    @Transactional
+    public InventaireUpdateResult updateNumerosInventaire(Long prixId,
+                                                          List<MaterielInventaireDTO> updates) {
+        List<String> warnings = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        int updatedCount = 0;
+        int skippedCount = 0;
+
+        // Indexer les matériels existants par numéro de série pour lookup rapide
+        Map<String, Material> materielsBySerie = materialRepository
+                .findByPrixIdWithoutInventaire(prixId)
+                .stream()
+                .filter(m -> m.getNumeroSerie() != null)
+                .collect(Collectors.toMap(
+                        Material::getNumeroSerie,
+                        m -> m,
+                        (existing, replacement) -> existing
+                ));
+
+        for (MaterielInventaireDTO dto : updates) {
+            if (!dto.isValid()) {
+                errors.add("Données invalides pour série: " + dto.getNumeroSerie());
+                skippedCount++;
+                continue;
+            }
+
+            String serie = dto.getNumeroSerie().trim();
+            String inventaire = dto.getNumeroInventaire().trim().toUpperCase();
+
+            // 1. Trouver le matériel par série
+            Material materiel = materielsBySerie.get(serie);
+            if (materiel == null) {
+                warnings.add("Matériel non trouvé pour N° Série: " + serie);
+                skippedCount++;
+                continue;
+            }
+
+            // 2. Vérifier unicité du numéro d'inventaire (global)
+            if (materialRepository.existsByNumeroInventaireAndIdNot(inventaire, materiel.getId())) {
+                errors.add("N° Inventaire '" + inventaire + "' déjà utilisé (série: " + serie + ")");
+                skippedCount++;
+                continue;
+            }
+
+            // 3. Mettre à jour
+            materiel.setNumeroInventaire(inventaire);
+//            materiel.setDateInventaire(new Date()); // Optionnel : timestamp de l'attribution
+            materialRepository.save(materiel);
+            updatedCount++;
+
+            // Retirer de la map pour éviter doublons dans le même batch
+            materielsBySerie.remove(serie);
+        }
+
+        return new InventaireUpdateResult(updatedCount, skippedCount, warnings, errors);
+    }
+
+    /**
+     * Prépare les données pour l'export Excel du template d'inventaire
+     */
+    public List<Map<String, Object>> getTemplateDataForAchat(Long achatId) {
+        List<Material> materiels = materialRepository.findByAchatIdWithSerial(achatId);
+
+        return materiels.stream().map(m -> {
+            Map<String, Object> row = new LinkedHashMap<>(); // Ordre préservé
+            row.put("N° Série Matériel", m.getNumeroSerie());
+            row.put("Nature", m.getPrix() != null ? m.getPrix().getNature() : "");
+            row.put("Désignation", m.getPrix() != null ? m.getPrix().getDesignation() : "");
+            row.put("Bénéficiaire Actuel",
+                    m.getBeneficiaire() != null ?
+                            m.getBeneficiaire().getNom() + " " + m.getBeneficiaire().getPrenom() :
+                            "Non attribué");
+            row.put("N° d'Inventaire", m.getNumeroInventaire() != null ? m.getNumeroInventaire() : "");
+            row.put("N° Prix", m.getPrix() != null ? m.getPrix().getNumeroPrix() : "");
+            return row;
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public MaterielsPreparationResponse getMaterielsPreparationByPrix(Long prixId) {
+
+        List<Material> aPreparer = materialRepository
+                .findByPrixIdWithSerialWithoutInventaire(prixId);
+
+        List<Material> dejaAttribues = materialRepository
+                .findByPrixIdWithSerialAndInventaire(prixId);
+
+        List<Material> enAttenteSerie = materialRepository
+                .findByPrixIdWithoutSerial(prixId);
+
+        long totalWithSerial = materialRepository.countByPrixIdWithSerial(prixId);
+        long totalPrepared = materialRepository.countByPrixIdPrepared(prixId);
+
+        return new MaterielsPreparationResponse(
+                aPreparer,
+                dejaAttribues,
+                enAttenteSerie,
+                totalWithSerial,
+                totalPrepared
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<Material> getMaterielsByAchatAndBeneficiaireWithSerial(Long achatId, Long beneficiaireId) {
+        return materialRepository.findByAchatIdAndBeneficiaireIdWithSerial(achatId, beneficiaireId);
+    }
+
+    @Transactional
+    public InventaireUpdateResult updateNumerosInventaireBatch(
+            Long achatId,
+            Long beneficiaireId,
+            List<MaterielInventaireDTO> updates) {
+
+        List<String> errors = new ArrayList<>();
+        int updatedCount = 0;
+
+        for (MaterielInventaireDTO dto : updates) {
+            if (dto.getNumeroSerie() == null || dto.getNumeroInventaire() == null) continue;
+
+            // Trouver le matériel par achat + bénéficiaire + série
+            Optional<Material> optional = materialRepository
+                    .findByAchatIdAndBeneficiaireIdWithSerial(achatId, beneficiaireId)
+                    .stream()
+                    .filter(m -> dto.getNumeroSerie().equals(m.getNumeroSerie()))
+                    .findFirst();
+
+            if (optional.isEmpty()) {
+                errors.add("Matériel non trouvé pour série: " + dto.getNumeroSerie());
+                continue;
+            }
+
+            Material materiel = optional.get();
+            String nouvelInventaire = dto.getNumeroInventaire().trim().toUpperCase();
+
+            // Vérifier unicité (sauf si c'est le même matériel)
+            if (materialRepository.existsByNumeroInventaireAndIdNot(nouvelInventaire, materiel.getId())) {
+                errors.add("N° Inventaire '" + nouvelInventaire + "' déjà utilisé");
+                continue;
+            }
+
+            materiel.setNumeroInventaire(nouvelInventaire);
+           // materiel.setDateInventaire(new Date()); // Optionnel
+            materialRepository.save(materiel);
+            updatedCount++;
+        }
+
+        return new InventaireUpdateResult(updatedCount, updates.size() - updatedCount, List.of(), errors);
+    }
+
 }

@@ -88,6 +88,7 @@ public class AchatService {
         achat.setDate(dto.getDate());
         achat.setTauxTva(dto.getTauxTva());
         achat.setType(dto.getType());
+        achat.setExercice(dto.getExercice());
         achat.setObservations(dto.getObservations());
 
         Fournisseur fournisseur = fournisseurRepository.findById(dto.getFournisseurId())
@@ -154,6 +155,13 @@ public class AchatService {
         Achat achat = getAchatById(achatId);
         Fournisseur fournisseur = achat.getFournisseur();
 
+        // Récupérer l'exercice de l'achat (String)
+        String exercice = achat.getExercice();
+        if (exercice == null || exercice.trim().isEmpty()) {
+            // Si l'exercice n'est pas défini, utiliser l'année courante
+            exercice = String.valueOf(java.time.Year.now().getValue());
+        }
+
         for (PrixDTO prixDTO : prixDTOList) {
             Prix prix = prixDTO.toEntity();
             prix.setAchat(achat);
@@ -161,6 +169,12 @@ public class AchatService {
 
             // Générer les matériels automatiquement
             List<Material> materiels = materialGenerationService.genererMateriels(prix, fournisseur);
+
+            // Affecter l'exercice à chaque matériel
+            for (Material material : materiels) {
+                material.setExercice(exercice);
+            }
+
             materialRepository.saveAll(materiels);
 
             prix.setMateriels(materiels);

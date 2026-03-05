@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -54,6 +55,13 @@ public class ExcelImportService {
             Achat achat = achatRepository.findById(achatId)
                     .orElseThrow(() -> new RuntimeException("Achat non trouvé"));
 
+            // Récupérer l'exercice de l'achat (String)
+            String exercice = achat.getExercice();
+            if (exercice == null || exercice.trim().isEmpty()) {
+                // Si l'exercice n'est pas défini, utiliser l'année courante
+                exercice = String.valueOf(Year.now().getValue());
+            }
+
             // Récupérer le fournisseur depuis l'achat
             Fournisseur fournisseur = achat.getFournisseur();
             if (fournisseur == null) {
@@ -85,6 +93,15 @@ public class ExcelImportService {
                         Prix prixExistant = prixExistantOpt.get();
                         mettreAJourPrix(prixExistant, dto);
                         prixRepository.save(prixExistant);
+
+                        // Mettre à jour l'exercice des matériels existants
+                        if (prixExistant.getMateriels() != null && !prixExistant.getMateriels().isEmpty()) {
+                            for (Material material : prixExistant.getMateriels()) {
+                                material.setExercice(exercice);
+                            }
+                            materialRepository.saveAll(prixExistant.getMateriels());
+                        }
+
                         result.lignesMiseAJour++;
                     } else {
                         // Créer un nouveau prix
@@ -93,6 +110,12 @@ public class ExcelImportService {
 
                         // Générer les matériels avec le fournisseur de l'achat
                         List<Material> materiels = materialGenerationService.genererMateriels(nouveauPrix, fournisseur);
+
+                        // Affecter l'exercice (String) à chaque matériel
+                        for (Material material : materiels) {
+                            material.setExercice(exercice);
+                        }
+
                         materialRepository.saveAll(materiels);
 
                         nouveauPrix.setMateriels(materiels);
@@ -115,6 +138,170 @@ public class ExcelImportService {
         }
 
         return result;
+    }
+
+    // Nouvelle méthode pour importer avec exercice spécifique (String)
+    @Transactional
+    public ImportResult importerPrixAvecExercice(MultipartFile file, Long achatId, String exercice) {
+        ImportResult result = new ImportResult();
+
+        try (InputStream inputStream = file.getInputStream();
+             Workbook workbook = new XSSFWorkbook(inputStream)) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+
+            Achat achat = achatRepository.findById(achatId)
+                    .orElseThrow(() -> new RuntimeException("Achat non trouvé"));
+
+            // Utiliser l'exercice fourni ou celui de l'achat
+            String exerciceAAffecter = exercice != null && !exercice.trim().isEmpty()
+                    ? exercice
+                    : achat.getExercice();
+
+            if (exerciceAAffecter == null || exerciceAAffecter.trim().isEmpty()) {
+                exerciceAAffecter = String.valueOf(Year.now().getValue());
+            }
+
+            // Récupérer le fournisseur depuis l'achat
+            Fournisseur fournisseur = achat.getFournisseur();
+            if (fournisseur == null) {
+                throw new RuntimeException("L'achat n'a pas de fournisseur associé");
+            }
+
+            // Vérifier si le fichier a le bon format
+            if (sheet.getLastRowNum() < 1) {
+                throw new RuntimeException("Le fichier Excel est vide");
+            }
+
+            // Récupérer tous les prix existants pour cet achat
+            List<Prix> prixExistants = prixRepository.findByAchatId(achatId);
+
+            // Lire les lignes (saute la première ligne d'en-tête)
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+
+                try {
+                    ExcelImportDTO dto = lireLignePrix(row);
+                    result.totalLignes++;
+
+                    // Vérifier si ce prix existe déjà (par numéro de prix)
+                    Optional<Prix> prixExistantOpt = trouverPrixParNumero(prixExistants, dto.getNumeroPrix());
+
+                    if (prixExistantOpt.isPresent()) {
+                        // Mettre à jour le prix existant
+                        Prix prixExistant = prixExistantOpt.get();
+                        mettreAJourPrix(prixExistant, dto);
+                        prixRepository.save(prixExistant);
+
+                        // Mettre à jour l'exercice des matériels existants
+                        if (prixExistant.getMateriels() != null && !prixExistant.getMateriels().isEmpty()) {
+                            for (Material material : prixExistant.getMateriels()) {
+                                material.setExercice(exerciceAAffecter);
+                            }
+                            materialRepository.saveAll(prixExistant.getMateriels());
+                        }
+
+                        result.lignesMiseAJour++;
+                    } else {
+                        // Créer un nouveau prix
+                        Prix nouveauPrix = creerPrix(dto, achat);
+                        nouveauPrix = prixRepository.save(nouveauPrix);
+
+                        // Générer les matériels avec le fournisseur de l'achat
+                        List<Material> materiels = materialGenerationService.genererMateriels(nouveauPrix, fournisseur);
+
+                        // Affecter l'exercice (String) à chaque matériel
+                        for (Material material : materiels) {
+                            material.setExercice(exerciceAAffecter);
+                        }
+
+                        materialRepository.saveAll(materiels);
+
+                        nouveauPrix.setMateriels(materiels);
+                        prixRepository.save(nouveauPrix);
+
+                        result.lignesImportees++;
+                    }
+
+                } catch (Exception e) {
+                    result.erreurs.add("Ligne " + (i + 1) + ": " + e.getMessage());
+                    result.lignesEnErreur++;
+                }
+            }
+
+            result.succes = true;
+
+        } catch (IOException e) {
+            result.succes = false;
+            result.messageErreur = "Erreur lors de la lecture du fichier: " + e.getMessage();
+        }
+
+        return result;
+    }
+
+    @Transactional
+    public ImportResult remplacerPrix(MultipartFile file, Long achatId) {
+        Achat achat = achatRepository.findById(achatId)
+                .orElseThrow(() -> new RuntimeException("Achat non trouvé"));
+
+        // Supprimer tous les prix existants pour cet achat
+        List<Prix> prixExistants = prixRepository.findByAchatId(achatId);
+
+        // Supprimer d'abord les matériels associés
+        for (Prix prix : prixExistants) {
+            if (prix.getMateriels() != null && !prix.getMateriels().isEmpty()) {
+                materialRepository.deleteAll(prix.getMateriels());
+            }
+        }
+
+        // Puis supprimer les prix
+        prixRepository.deleteAll(prixExistants);
+
+        // Importer les nouveaux prix
+        return importerPrix(file, achatId);
+    }
+
+    @Transactional
+    public ImportResult remplacerPrixAvecExercice(MultipartFile file, Long achatId, String exercice) {
+        Achat achat = achatRepository.findById(achatId)
+                .orElseThrow(() -> new RuntimeException("Achat non trouvé"));
+
+        // Supprimer tous les prix existants pour cet achat
+        List<Prix> prixExistants = prixRepository.findByAchatId(achatId);
+
+        // Supprimer d'abord les matériels associés
+        for (Prix prix : prixExistants) {
+            if (prix.getMateriels() != null && !prix.getMateriels().isEmpty()) {
+                materialRepository.deleteAll(prix.getMateriels());
+            }
+        }
+
+        // Puis supprimer les prix
+        prixRepository.deleteAll(prixExistants);
+
+        // Importer les nouveaux prix avec l'exercice spécifié
+        return importerPrixAvecExercice(file, achatId, exercice);
+    }
+
+    // Méthode utilitaire pour valider le format d'exercice
+    private boolean isValidExercice(String exercice) {
+        if (exercice == null || exercice.trim().isEmpty()) {
+            return false;
+        }
+        // Format attendu: année sur 4 chiffres (ex: 2023, 2024)
+        return exercice.matches("^\\d{4}$");
+    }
+
+    private Optional<Prix> trouverPrixParNumero(List<Prix> prixList, String numeroPrix) {
+        if (numeroPrix == null || prixList == null) {
+            return Optional.empty();
+        }
+
+        return prixList.stream()
+                .filter(p -> p.getNumeroPrix() != null &&
+                        p.getNumeroPrix().equals(numeroPrix))
+                .findFirst();
     }
 
     private Prix creerPrix(ExcelImportDTO dto, Achat achat) {
@@ -161,40 +348,6 @@ public class ExcelImportService {
         prix.setUnite(dto.getUnite());
         prix.setQuantite(dto.getQuantite());
         prix.setPrixUnitaireHT(dto.getPrixUnitaireHT());
-    }
-
-    // Ajoutez aussi la méthode remplacerPrix
-    @Transactional
-    public ImportResult remplacerPrix(MultipartFile file, Long achatId) {
-        Achat achat = achatRepository.findById(achatId)
-                .orElseThrow(() -> new RuntimeException("Achat non trouvé"));
-
-        // Supprimer tous les prix existants pour cet achat
-        List<Prix> prixExistants = prixRepository.findByAchatId(achatId);
-
-        // Supprimer d'abord les matériels associés
-        for (Prix prix : prixExistants) {
-            if (prix.getMateriels() != null && !prix.getMateriels().isEmpty()) {
-                materialRepository.deleteAll(prix.getMateriels());
-            }
-        }
-
-        // Puis supprimer les prix
-        prixRepository.deleteAll(prixExistants);
-
-        // Importer les nouveaux prix
-        return importerPrix(file, achatId);
-    }
-
-    private Optional<Prix> trouverPrixParNumero(List<Prix> prixList, String numeroPrix) {
-        if (numeroPrix == null || prixList == null) {
-            return Optional.empty();
-        }
-
-        return prixList.stream()
-                .filter(p -> p.getNumeroPrix() != null &&
-                        p.getNumeroPrix().equals(numeroPrix))
-                .findFirst();
     }
 
     private ExcelImportDTO lireLignePrix(Row row) {

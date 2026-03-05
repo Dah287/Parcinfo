@@ -27,6 +27,10 @@ public class Material {
     @Column(unique = true)
     private String numeroSerie;
 
+    // NOUVEAU: Numéro de série de l'écran (pour les écrans séparés)
+    @Column
+    private String numeroSerieEcran;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "prix_id", nullable = false)
     @JsonProperty("prix") // ✅ Force la sérialisation
@@ -39,6 +43,8 @@ public class Material {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "marque_id")
     private Marque marque;
+
+    private String exercice;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "systeme_exploitation_id")
