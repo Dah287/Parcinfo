@@ -290,104 +290,49 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
     }
   };
 
-  const downloadTemplate = () => {
-    // Créer une feuille avec les données d'exemple
-    const templateData = [
-      [
-        'Numéro Prix', 'Désignation', 'Nature', 'Type Imprimante', 'Marque',
-        'Inventorié', 'Parc', 'Format Papier', 'Puissance Onduleur', 'Processeur',
-        'Disque', 'Vitesse', 'RAM', 'Ecran', 'Ecran Inventorié',
-        'Système Exploitation', 'Unité', 'Quantité', 'Prix HT (DH)'
-      ],
-      [
-        'P001', 'Ordinateur portable Dell', 'Ordinateur portable', '', 'Dell',
-        'Oui', 'Oui', '', '', 'Intel Core i7',
-        '512GB SSD', '3.4 GHz', '16GB', '15.6"', 'Non',
-        'Windows 11', 'U', '5', '1200.00'
-      ],
-      [
-        'P002', 'Imprimante Laser HP', 'Imprimante', 'Laser', 'HP',
-        'Oui', 'Oui', 'A4', '', '',
-        '', '20 ppm', '', '', '',
-        '', 'U', '3', '350.00'
-      ],
-      [
-        'P003', 'Onduleur APC', 'Onduleur', '', 'APC',
-        'Oui', 'Oui', '', '1000VA', '',
-        '', '', '', '', '',
-        '', 'U', '2', '250.00'
-      ]
-    ];
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(templateData);
-
-    // Ajouter une validation de données pour la colonne Nature (colonne C)
-    // Créer une liste de validation pour la colonne Nature (index 2 = colonne C)
-    const natureValidation = {
-      type: 'list',
-      allowBlank: true,
-      formula1: `"${natureOptions.join(',')}"`
-    };
-
-    // Appliquer la validation à toutes les cellules de la colonne Nature (sauf l'en-tête)
-    if (!ws['!dataValidation']) {
-      ws['!dataValidation'] = [];
-    }
-
-    // Appliquer la validation pour les lignes 2 à 1000 de la colonne C (index 2)
-    for (let row = 2; row <= 1000; row++) {
-      const cellRef = `C${row}`;
-      ws['!dataValidation'].push({
-        ...natureValidation,
-        sqref: cellRef
-      });
-    }
-
-    // Ajuster la largeur des colonnes
-    ws['!cols'] = [
-      { wch: 15 }, { wch: 40 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
-      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
-      { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
-      { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 15 }
-    ];
-
-    // Ajouter une feuille d'instructions avec la liste des natures
-    const instructionsData = [
-      ['INSTRUCTIONS POUR L\'IMPORTATION DES PRIX'],
-      [''],
-      ['1. Colonnes obligatoires :'],
-      ['   - Numéro Prix (doit être unique)'],
-      ['   - Désignation'],
-      ['   - Quantité (nombre)'],
-      ['   - Prix HT (nombre)'],
-      [''],
-      ['2. Colonne Nature :'],
-      ['   Utilisez la liste déroulante pour sélectionner une valeur parmi :'],
-      ...natureOptions.map(nature => [`   - ${nature}`]),
-      [''],
-      ['3. Colonnes Oui/Non :'],
-      ['   - Inventorié'],
-      ['   - Parc'],
-      ['   - Ecran Inventorié'],
-      ['   Valeurs acceptées : Oui, Non, True, False, 1, 0'],
-      [''],
-      ['4. Exemple de données :'],
-      ['   Voir la feuille "Modèle Prix" pour un exemple complet']
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Modèle Prix');
-    
-    const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
-    wsInstructions['!cols'] = [{ wch: 80 }];
-    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
-
+ const downloadTemplate = async () => {
+  try {
+    // Définir le nom du fichier téléchargé (avec ou sans référence d'achat)
     const fileName = selectedAchat 
       ? `modele_prix_${selectedAchat.reference.replace(/[^a-z0-9]/gi, '_')}.xlsx`
       : 'modele_importation_prix_complet.xlsx';
-
-    XLSX.writeFile(wb, fileName);
-  };
+    
+    // URL du template pré-existant (dans le dossier public)
+    const templateUrl = '/modele_prix.xlsx';
+    
+    // Récupérer le fichier via fetch
+    const response = await fetch(templateUrl);
+    
+    if (!response.ok) {
+      throw new Error('Impossible de télécharger le template. Vérifiez que le fichier existe dans le dossier public.');
+    }
+    
+    // Convertir la réponse en Blob
+    const blob = await response.blob();
+    
+    // Créer un objet URL temporaire
+    const downloadUrl = window.URL.createObjectURL(blob);
+    
+    // Créer et déclencher le lien de téléchargement
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName; // Nom personnalisé du fichier téléchargé
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Nettoyer l'objet URL
+    window.URL.revokeObjectURL(downloadUrl);
+    
+  } catch (error) {
+    console.error('❌ Erreur lors du téléchargement du template :', error);
+    
+    // Fallback : ouverture directe dans un nouvel onglet
+    window.open('/modele_prix.xlsx', '_blank');
+  }
+};
 
   const calculateTotalPreview = () => {
     return previewData.reduce((total, prix) => {

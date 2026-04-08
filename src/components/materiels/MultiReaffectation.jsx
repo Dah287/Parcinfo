@@ -509,7 +509,7 @@ const generatePVChangementPDF = () => {
                           </div>
                           <div className="text-sm text-gray-600">
                             {sourceBeneficiaire.matricule ? `${sourceBeneficiaire.matricule} • ` : ''}
-                            {sourceBeneficiaire.departement?.nom || sourceBeneficiaire.service?.nom || 'N/A'}
+                            {sourceBeneficiaire.departement?.nom || sourceBeneficiaire.service?.nom || ' '}
                           </div>
                         </>
                       ) : (
@@ -580,7 +580,7 @@ const generatePVChangementPDF = () => {
                             </div>
                             <div className="text-sm text-gray-600 flex justify-between mt-1">
                               <span>{beneficiaire.matricule || 'Sans matricule'}</span>
-                              <span>{beneficiaire.departement?.nom || 'N/A'}</span>
+                              <span>{beneficiaire.departement?.nom || 'Aucun Département'}</span>
                             </div>
                           </div>
                         ))
@@ -632,7 +632,7 @@ const generatePVChangementPDF = () => {
                           </div>
                           <div className="text-sm text-gray-600">
                             {destinationBeneficiaire.matricule ? `${destinationBeneficiaire.matricule} • ` : ''}
-                            {destinationBeneficiaire.departement?.nom || destinationBeneficiaire.service?.nom || 'N/A'}
+                            {destinationBeneficiaire.departement?.nom || destinationBeneficiaire.service?.nom || ' '}
                           </div>
                         </>
                       ) : (
@@ -701,7 +701,7 @@ const generatePVChangementPDF = () => {
                             </div>
                             <div className="text-sm text-gray-600 flex justify-between mt-1">
                               <span>{beneficiaire.matricule || 'Sans matricule'}</span>
-                              <span>{beneficiaire.departement?.nom || 'N/A'}</span>
+                              <span>{beneficiaire.departement?.nom || 'Aucun Département'}</span>
                             </div>
                           </div>
                         ))
@@ -776,7 +776,7 @@ const generatePVChangementPDF = () => {
                           <div className="flex-1">
                             <div className="flex justify-between">
                               <div className="font-medium text-gray-800">
-                                {materiel.numeroInventaire || `Matériel #${materiel.id}`}
+                                {materiel.numeroInventaire || `Matériel NS: ${materiel.numeroSerie} `}
                               </div>
                               {materiel.type && (
                                 <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
@@ -787,8 +787,10 @@ const generatePVChangementPDF = () => {
                             
                             <div className="mt-2 text-sm text-gray-600">
                               <div className="flex justify-between">
-                                <span>{materiel.marque?.nom || 'N/A'}</span>
-                                <span>{materiel.numeroSerie || 'N/A'}</span>
+
+                                <span>{`NI : ${materiel.numeroInventaire || 'Aucun'} `}</span>
+                                <span>{`NS : ${materiel.numeroSerie || 'Aucun'} `}</span>
+                                <span>{`Exercice : ${materiel.exercice || 'Aucun'} `}</span>
                               </div>
                               
                               {materiel.caracteristiques && (

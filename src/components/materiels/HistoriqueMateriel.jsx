@@ -322,6 +322,7 @@ const generatePV = (item) => {
   const ancienDepartement = item.ancienBeneficiaireDepartement || "...........";
   
   doc.text(ancienNomComplet, 50, 60);
+  doc.text(`Matricule. : ${ancienDepartement}`,  50, 67); // Using Departement as Local
   doc.text("Matricule : ...............", 50, 67); // Not in API, keep placeholder
   doc.text("Code Analytique : ...............", 90, 67);
   doc.text(`Local. : ${ancienDepartement}`, 150, 67); // Using Departement as Local
@@ -762,12 +763,12 @@ const generatePV = (item) => {
                         <div className="flex-1">
                           <div className="flex justify-between items-start">
                             <div className="font-medium text-gray-800">
-                              {materiel.numeroInventaire || `Matériel #${materiel.id}`}
-                              {materiel.numeroSerie && (
-                                <span className="ml-2 text-sm text-gray-600 flex items-center"><FiTag className="mr-1" size={12} />{materiel.numeroSerie}</span>
-                              )}
+                              {` (S/N: ${materiel.numeroSerie})`|| `Matériel sans S/N: ${materiel.id}`}
+                             
                             </div>
+
                             <span className={`px-2 py-1 text-xs rounded-full ${getEtatColor(materiel.etat)}`}>{materiel.etat || 'N/A'}</span>
+                             <span className={`px-2 py-1 text-xs rounded-full ${getEtatColor(materiel.etat)}`}>{materiel.exercice || 'N/A'}</span>
                           </div>
                           <div className="text-sm text-gray-600 mt-1">
                             <div className="flex flex-wrap gap-2">
@@ -800,10 +801,11 @@ const generatePV = (item) => {
               <div className="flex-1">
                 <span className="font-medium text-green-800">Matériel sélectionné:</span>
                 <div className="text-sm text-green-700 grid grid-cols-1 md:grid-cols-2 gap-1 mt-1">
-                  <div><span className="font-medium">N° Inventaire:</span> {selectedMateriel.numeroInventaire || 'Non défini'}</div>
+                  
                   <div><span className="font-medium">Type:</span> {getType(selectedMateriel)}</div>
                   <div><span className="font-medium">N° Série:</span> {selectedMateriel.numeroSerie || 'N/A'}</div>
                   <div><span className="font-medium">État:</span> {selectedMateriel.etat || 'N/A'}</div>
+                  <div><span className="font-medium">Exercice:</span> {selectedMateriel.exercice || 'Non défini'}</div>
                   <div><span className="font-medium">Bénéficiaire:</span> {selectedMateriel.beneficiaire ? ` ${selectedMateriel.beneficiaire.nom} ${selectedMateriel.beneficiaire.prenom}` : ' Non attribué'}</div>
                 </div>
               </div>
@@ -908,7 +910,7 @@ const generatePV = (item) => {
             <div className="p-4 border-b border-gray-200 bg-gray-50">
               <div className="flex justify-between items-center">
                 <h3 className="font-semibold text-gray-800">Historique ({filteredHistorique.length} opérations)</h3>
-                <span className="text-sm text-gray-500">{selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`}</span>
+                <span className="text-sm text-gray-500">{` (S/N: ${selectedMateriel.numeroSerie})`|| `Matériel sans S/N: ${selectedMateriel.id}`}</span>
               </div>
             </div>
             <div className="divide-y divide-gray-200">

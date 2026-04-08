@@ -508,22 +508,21 @@ const AttributionMateriel = () => {
                   {prix.designation || `Prix #${prix.id}`}
                 </div>
                 <div className="text-sm text-gray-600">
+                  {prix.numeroPrix && `${prix.numeroPrix} • `}
                   {prix.marque && `${prix.marque} • `}
                   {prix.modele && `${prix.modele} • `}
-                  {prix.prixUnitaire && `${prix.prixUnitaire.toLocaleString('fr-MA')} DH`}
+               
                 </div>
               </>
             )}
             renderItem={(prix) => (
               <>
                 <div className="font-medium text-gray-800">
-                  {prix.designation || `Prix #${prix.id}`}
+                  {`Prix : ${prix.numeroPrix} • ${prix.nature}`}
                 </div>
                 <div className="text-sm text-gray-600 flex justify-between mt-1">
                   <span>{prix.marque || 'N/A'} {prix.modele && `• ${prix.modele}`}</span>
-                  <span className="font-semibold text-blue-600">
-                    {prix.prixUnitaire?.toLocaleString('fr-MA') || '0'} DH
-                  </span>
+
                 </div>
               </>
             )}
@@ -548,18 +547,18 @@ const AttributionMateriel = () => {
             renderDisplay={(materiel) => (
               <>
                 <div className="font-medium text-gray-800">
-                  {materiel.numeroInventaire || `Matériel #${materiel.id}`}
+                  {materiel.numeroSerie || `Matériel Sans S/N: ${materiel.id}`}
                 </div>
                 <div className="text-sm text-gray-600">
-                  {materiel.type?.designation || 'N/A'} • {materiel.marque?.nom || 'N/A'} • {materiel.numeroSerie || 'N/A'}
+                  {materiel.type?.designation || 'N/A'} 
                 </div>
               </>
             )}
             renderItem={(materiel) => (
               <>
                 <div className="font-medium text-gray-800">
-                  {materiel.numeroInventaire || `Matériel #${materiel.id}`}
-                  {materiel.numeroSerie && ` (S/N: ${materiel.numeroSerie})`}
+                  {` (S/N: ${materiel.numeroSerie})`|| `Matériel sans S/N: ${materiel.id}`}
+                 
                 </div>
                 <div className="text-sm text-gray-600 flex justify-between mt-1">
                   <span>{materiel.type?.designation || 'N/A'}</span>

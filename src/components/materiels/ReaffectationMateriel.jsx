@@ -125,7 +125,7 @@ const ReaffectationMateriel = () => {
     } else if (actionType === 'liberer') {
       // Validation pour la libération
       if (!selectedMateriel) {
-        toast.warning('Veuillez sélectionner un matériel à libérer');
+        toast.warning('Veuillez sélectionner un matériel à rendre indisponible');
         return;
       }
 
@@ -247,9 +247,9 @@ const ReaffectationMateriel = () => {
                   <FiPackage size={20} />
                 </div>
                 <div>
-                  <div className="font-medium text-gray-800">Libérer le matériel</div>
+                  <div className="font-medium text-gray-800">Proposé à la réforme</div>
                   <div className="text-sm text-gray-600 mt-1">
-                    Rendre le matériel disponible (retirer l'attribution)
+                    Rendre le matériel indisponible pour attribution (proposé à la réforme)
                   </div>
                 </div>
               </div>
@@ -284,7 +284,7 @@ const ReaffectationMateriel = () => {
                     {selectedMateriel ? (
                       <>
                         <div className="font-medium text-gray-800">
-                          {selectedMateriel.numeroInventaire || 'Sans numéro d\'inventaire'}
+                          {`(S/N: ${selectedMateriel.numeroSerie})`|| 'Sans numéro de série'}
                         </div>
                         <div className="text-sm text-gray-600">
                           {selectedMateriel.type?.designation || 'N/A'} • {selectedMateriel.marque?.nom || 'N/A'}
@@ -352,7 +352,9 @@ const ReaffectationMateriel = () => {
                           }`}
                         >
                           <div className="font-medium text-gray-800">
-                            {materiel.numeroInventaire || `Matériel #${materiel.id}`}
+                           
+                             {` (S/N: ${materiel.numeroSerie})`|| `Matériel sans S/N: ${materiel.id}`}
+                             
                           </div>
                           <div className="text-sm text-gray-600 flex justify-between mt-1">
                             <span>{materiel.type?.designation || 'N/A'}</span>
@@ -380,7 +382,7 @@ const ReaffectationMateriel = () => {
                   <div className="flex-1">
                     <span className="font-medium text-green-800">Matériel sélectionné:</span>
                     <div className="text-sm text-green-700">
-                      {selectedMateriel.numeroInventaire || `Matériel #${selectedMateriel.id}`} • 
+                          {`(S/N: ${selectedMateriel.numeroSerie})`|| 'Sans numéro de série'} • 
                       {selectedMateriel.type?.designation ? ` ${selectedMateriel.type.designation} •` : ''}
                       {selectedMateriel.marque?.nom ? ` ${selectedMateriel.marque.nom}` : ''}
                     </div>
@@ -615,7 +617,7 @@ const ReaffectationMateriel = () => {
                   {actionType === 'liberer' ? (
                     <>
                       <FiCheck className="mr-2" />
-                      Libérer le matériel
+                      Propose à la réforme
                     </>
                   ) : (
                     <>

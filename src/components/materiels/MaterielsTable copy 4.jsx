@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FiSearch,
   FiRefreshCw,
@@ -64,10 +64,6 @@ const MaterielsTable = () => {
     etat: ''
   });
 
-  // États pour gérer l'affichage des champs de filtre par colonne
-  const [activeFilterInput, setActiveFilterInput] = useState(null);
-  const filterInputRefs = useRef({});
-
   // États pour les filtres avancés
   const [showFilters, setShowFilters] = useState(false);
   const [selectedEtat, setSelectedEtat] = useState('all');
@@ -107,18 +103,6 @@ const MaterielsTable = () => {
   const [showBeneficiaireDropdownModal, setShowBeneficiaireDropdownModal] = useState(false);
 
   const [loadingFilters, setLoadingFilters] = useState(false);
-
-  // Fermer le champ de filtre lors du clic en dehors
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (activeFilterInput && filterInputRefs.current[activeFilterInput] && 
-          !filterInputRefs.current[activeFilterInput].contains(event.target)) {
-        setActiveFilterInput(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activeFilterInput]);
 
   const etatOptions = [
     { value: 'all', label: 'Tous les états', color: 'gray' },
@@ -357,11 +341,6 @@ const MaterielsTable = () => {
     return count;
   };
 
-  // Compter les filtres de colonne actifs
-  const getActiveColumnFiltersCount = () => {
-    return Object.values(columnFilters).filter(value => value && value.trim() !== '').length;
-  };
-
   const toggleRow = (id) => {
     setExpandedRow(expandedRow === id ? null : id);
   };
@@ -448,61 +427,6 @@ const MaterielsTable = () => {
   const filteredExercices = exercices.filter(e =>
     e?.toLowerCase().includes(exerciceSearch.toLowerCase())
   );
-
-  // Composant ColumnFilter pour les filtres par colonne avec icône
-  const ColumnFilter = ({ column, label, value, placeholder }) => {
-    const isActive = activeFilterInput === column;
-    const hasValue = value && value.trim() !== '';
-
-    return (
-      <div className="relative inline-flex items-center gap-1" ref={el => filterInputRefs.current[column] = el}>
-        <span className="text-xs font-medium text-gray-500 uppercase">{label}</span>
-        <button
-          onClick={() => setActiveFilterInput(isActive ? null : column)}
-          className={`p-1 rounded-full transition-colors ${
-            hasValue 
-              ? 'text-purple-600 bg-purple-100' 
-              : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'
-          }`}
-          title={hasValue ? `Filtré: ${value}` : 'Filtrer cette colonne'}
-        >
-          <FiSearch size={14} />
-        </button>
-        {isActive && (
-          <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-300 rounded-lg shadow-lg p-2 min-w-[200px]">
-            <div className="relative">
-              <input
-                type="text"
-                value={value}
-                onChange={(e) => handleFilterChange(column, e.target.value)}
-                placeholder={placeholder}
-                className="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                autoFocus
-              />
-              {hasValue && (
-                <button
-                  onClick={() => {
-                    handleFilterChange(column, '');
-                    setActiveFilterInput(null);
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <FiX size={14} />
-                </button>
-              )}
-            </div>
-            {hasValue && (
-              <div className="mt-2 pt-2 border-t border-gray-100">
-                <span className="text-xs text-purple-600">
-                  Filtre actif: "{value}"
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // Composant FilterDropdown pour les filtres avancés
   const FilterDropdown = ({
@@ -616,6 +540,20 @@ const MaterielsTable = () => {
           white-space: nowrap;
           vertical-align: top;
           padding: 0.75rem 0.5rem;
+        }
+        .filter-input {
+          width: 100%;
+          padding: 0.25rem 0.5rem;
+          margin-top: 0.5rem;
+          font-size: 0.75rem;
+          border: 1px solid #d1d5db;
+          border-radius: 0.25rem;
+          background-color: white;
+        }
+        .filter-input:focus {
+          outline: none;
+          ring: 2px solid #3b82f6;
+          border-color: #3b82f6;
         }
         .materiels-table td {
           padding: 1rem 0.5rem;
@@ -895,162 +833,111 @@ const MaterielsTable = () => {
         </div>
       )}
 
-      {/* Indicateur des filtres de colonne actifs */}
-      {getActiveColumnFiltersCount() > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          <span className="text-sm text-gray-600">Filtres de colonne actifs:</span>
-          {columnFilters.exercice && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              Exercice: {columnFilters.exercice}
-              <button onClick={() => handleFilterChange('exercice', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.type && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              Type: {columnFilters.type}
-              <button onClick={() => handleFilterChange('type', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.marque && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              Marque: {columnFilters.marque}
-              <button onClick={() => handleFilterChange('marque', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.numeroInventaire && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              N° Inventaire: {columnFilters.numeroInventaire}
-              <button onClick={() => handleFilterChange('numeroInventaire', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.numeroSerie && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              N° Série: {columnFilters.numeroSerie}
-              <button onClick={() => handleFilterChange('numeroSerie', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.systeme && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              Système: {columnFilters.systeme}
-              <button onClick={() => handleFilterChange('systeme', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.numeroSerieEcran && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              N° Série Écran: {columnFilters.numeroSerieEcran}
-              <button onClick={() => handleFilterChange('numeroSerieEcran', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.beneficiaire && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              Bénéficiaire: {columnFilters.beneficiaire}
-              <button onClick={() => handleFilterChange('beneficiaire', '')}><FiX size={10} /></button>
-            </span>
-          )}
-          {columnFilters.etat && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
-              État: {columnFilters.etat}
-              <button onClick={() => handleFilterChange('etat', '')}><FiX size={10} /></button>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Tableau avec filtres par colonne à icônes */}
+      {/* Tableau avec filtres par colonne */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
         <div className="table-container">
           <table className="materiels-table">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="exercice" 
-                      label="Exercice" 
-                      value={columnFilters.exercice}
-                      placeholder="Filtrer par exercice..."
-                    />
-                  </div>
+                {/* <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>ID</div>
+                  <input
+                    type="text"
+                    value={columnFilters.id}
+                    onChange={(e) => handleFilterChange('id', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
+                </th> */}
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>Exercice</div>
+                  <input
+                    type="text"
+                    value={columnFilters.exercice}
+                    onChange={(e) => handleFilterChange('exercice', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="type" 
-                      label="Type" 
-                      value={columnFilters.type}
-                      placeholder="Filtrer par type..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>Type</div>
+                  <input
+                    type="text"
+                    value={columnFilters.type}
+                    onChange={(e) => handleFilterChange('type', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="marque" 
-                      label="Marque" 
-                      value={columnFilters.marque}
-                      placeholder="Filtrer par marque..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>Marque</div>
+                  <input
+                    type="text"
+                    value={columnFilters.marque}
+                    onChange={(e) => handleFilterChange('marque', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="numeroInventaire" 
-                      label="N° Inventaire" 
-                      value={columnFilters.numeroInventaire}
-                      placeholder="Filtrer par N° inventaire..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>N° Inventaire</div>
+                  <input
+                    type="text"
+                    value={columnFilters.numeroInventaire}
+                    onChange={(e) => handleFilterChange('numeroInventaire', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="numeroSerie" 
-                      label="N° Série" 
-                      value={columnFilters.numeroSerie}
-                      placeholder="Filtrer par N° série..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>N° Série</div>
+                  <input
+                    type="text"
+                    value={columnFilters.numeroSerie}
+                    onChange={(e) => handleFilterChange('numeroSerie', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="systeme" 
-                      label="Système" 
-                      value={columnFilters.systeme}
-                      placeholder="Filtrer par système..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>Système</div>
+                  <input
+                    type="text"
+                    value={columnFilters.systeme}
+                    onChange={(e) => handleFilterChange('systeme', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="numeroSerieEcran" 
-                      label="N° Série Écran" 
-                      value={columnFilters.numeroSerieEcran}
-                      placeholder="Filtrer par N° série écran..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>N° Série Écran</div>
+                  <input
+                    type="text"
+                    value={columnFilters.numeroSerieEcran}
+                    onChange={(e) => handleFilterChange('numeroSerieEcran', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="beneficiaire" 
-                      label="Bénéficiaire" 
-                      value={columnFilters.beneficiaire}
-                      placeholder="Filtrer par bénéficiaire..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>Bénéficiaire</div>
+                  <input
+                    type="text"
+                    value={columnFilters.beneficiaire}
+                    onChange={(e) => handleFilterChange('beneficiaire', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
-                <th className="px-2 py-3 text-left">
-                  <div className="flex items-center justify-between">
-                    <ColumnFilter 
-                      column="etat" 
-                      label="État" 
-                      value={columnFilters.etat}
-                      placeholder="Filtrer par état..."
-                    />
-                  </div>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <div>État</div>
+                  <input
+                    type="text"
+                    value={columnFilters.etat}
+                    onChange={(e) => handleFilterChange('etat', e.target.value)}
+                    placeholder="Filtrer..."
+                    className="filter-input"
+                  />
                 </th>
                 <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                   Actions
@@ -1060,7 +947,7 @@ const MaterielsTable = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="10" className="px-6 py-12 text-center">
+                  <td colSpan="11" className="px-6 py-12 text-center">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mr-3"></div>
                       <span className="text-gray-500">Chargement...</span>
@@ -1069,7 +956,7 @@ const MaterielsTable = () => {
                 </tr>
               ) : filteredMateriels.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="11" className="px-6 py-8 text-center text-gray-500">
                     <div className="flex flex-col items-center">
                       <FiInfo size={48} className="text-gray-300 mb-2" />
                       <p className="text-lg font-medium">Aucun matériel trouvé</p>
@@ -1083,6 +970,7 @@ const MaterielsTable = () => {
                       className={`hover:bg-gray-50 cursor-pointer ${expandedRow === materiel.id ? 'bg-blue-50' : ''}`}
                       onClick={() => toggleRow(materiel.id)}
                     >
+                      {/* <td className="px-2 py-3 text-sm font-mono text-gray-600">#{materiel.id}</td> */}
                       <td className="px-2 py-3 text-sm text-gray-700">
                         <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">
                           {getExercice(materiel)}
@@ -1116,7 +1004,7 @@ const MaterielsTable = () => {
                     </tr>
                     {expandedRow === materiel.id && (
                       <tr className="bg-gray-50">
-                        <td colSpan="10" className="px-6 py-4">
+                        <td colSpan="11" className="px-6 py-4">
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
                             <div>
                               <span className="font-semibold text-gray-700">Caractéristiques:</span>

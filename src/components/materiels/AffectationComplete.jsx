@@ -553,10 +553,11 @@ const handleSubmit = async (e) => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-800 truncate">
-                      {materiel.numeroSerie || `Matériel #${materiel.id}`}
+                      {` (S/N: ${materiel.numeroSerie})`|| `Matériel sans S/N: ${materiel.id}`}
                     </div>
                     <div className="text-xs text-gray-500 mt-1 space-y-0.5">
                       {materiel.numeroSerie && <div>S/N: {materiel.numeroSerie}</div>}
+                       
                       {materiel.marque?.nom && <div>Marque: {materiel.marque.nom}</div>}
                       {materiel.type?.designation && <div>Modèle: {materiel.type.designation}</div>}
                     </div>

@@ -433,7 +433,7 @@ const AddPrixManuel = ({ onClose, onSuccess }) => {
                   value={prixForm.numeroPrix}
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="P001"
+                  placeholder="1,2, etc."
                   required
                   disabled={!selectedAchat || loading}
                 />
@@ -546,13 +546,10 @@ const AddPrixManuel = ({ onClose, onSuccess }) => {
                   disabled={!selectedAchat || loading}
                 >
                   <option value="U">Unité (U)</option>
-                  <option value="LOT">Lot</option>
+                  <option value="F">Unité (F)</option>
                   <option value="M">Mètre</option>
-                  <option value="KG">Kilogramme</option>
-                  <option value="L">Litre</option>
-                  <option value="M2">Mètre carré</option>
-                  <option value="H">Heure</option>
-                  <option value="J">Jour</option>
+
+
                 </select>
               </div>
 

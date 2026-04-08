@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   FiSearch, 
   FiRefreshCw, 
@@ -22,7 +22,7 @@ import {
   FiFile,
   FiGrid,
   FiMinusCircle,
-  FiFolder // Ajout de l'icône pour l'exercice
+  FiFolder
 } from 'react-icons/fi';
 import { 
   getAllAchats, 
@@ -38,6 +38,7 @@ import { getAllFournisseurs } from '../../services/fournisseurService';
 
 const AchatTableExcel = () => {
   const [achats, setAchats] = useState([]);
+  const [filteredAchats, setFilteredAchats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,7 +49,20 @@ const AchatTableExcel = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentAchat, setCurrentAchat] = useState(null);
   const [nombrePrixParAchat, setNombrePrixParAchat] = useState({});
-  
+
+  // États pour les filtres par colonne
+  const [columnFilters, setColumnFilters] = useState({
+    reference: '',
+    exercice: '',
+    date: '',
+    type: '',
+    fournisseur: ''
+  });
+
+  // État pour gérer l'affichage des champs de filtre par colonne
+  const [activeFilterInput, setActiveFilterInput] = useState(null);
+  const filterInputRefs = useRef({});
+
   const [formData, setFormData] = useState({
     reference: '',
     date: '',
@@ -56,11 +70,23 @@ const AchatTableExcel = () => {
     type: 'MARCHE',
     observations: '',
     fournisseurId: '',
-    exercice: new Date().getFullYear().toString() // Ajout du champ exercice avec l'année courante par défaut
+    exercice: new Date().getFullYear().toString()
   });
-  
+
   const [fournisseurs, setFournisseurs] = useState([]);
   const [loadingFournisseurs, setLoadingFournisseurs] = useState(false);
+
+  // Fermer le champ de filtre lors du clic en dehors
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (activeFilterInput && filterInputRefs.current[activeFilterInput] && 
+          !filterInputRefs.current[activeFilterInput].contains(event.target)) {
+        setActiveFilterInput(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeFilterInput]);
 
   // Charger les achats, statistiques et fournisseurs au montage
   useEffect(() => {
@@ -68,6 +94,17 @@ const AchatTableExcel = () => {
     fetchStats();
     loadFournisseurs();
   }, []);
+
+  useEffect(() => {
+    if (achats.length > 0) {
+      chargerNombresPrix();
+    }
+  }, [achats]);
+
+  // Appliquer les filtres chaque fois que les achats ou les filtres changent
+  useEffect(() => {
+    filterAchats();
+  }, [achats, columnFilters]);
 
   const fetchData = async () => {
     try {
@@ -96,7 +133,6 @@ const AchatTableExcel = () => {
     try {
       setLoadingFournisseurs(true);
       const response = await getAllFournisseurs();
-      console.log('Fournisseurs chargés:', response.data);
       setFournisseurs(response.data);
     } catch (err) {
       console.error('Erreur lors du chargement des fournisseurs:', err);
@@ -106,7 +142,6 @@ const AchatTableExcel = () => {
     }
   };
 
-  // Fonction pour charger tous les nombres de prix
   const chargerNombresPrix = async () => {
     const nombres = {};
     for (const achat of achats) {
@@ -120,16 +155,60 @@ const AchatTableExcel = () => {
     setNombrePrixParAchat(nombres);
   };
 
-  // Appelez cette fonction après fetchData
-  useEffect(() => {
-    if (achats.length > 0) {
-      chargerNombresPrix();
-    }
-  }, [achats]);
-
-  // Fonction simple pour obtenir le nombre de prix
   const getNombrePrix = (achatId) => {
     return nombrePrixParAchat[achatId] || 0;
+  };
+
+  // Fonction de filtrage
+  const filterAchats = () => {
+    let filtered = [...achats];
+
+    if (columnFilters.reference) {
+      const val = columnFilters.reference.toLowerCase();
+      filtered = filtered.filter(a => (a.reference || '').toLowerCase().includes(val));
+    }
+    if (columnFilters.exercice) {
+      const val = columnFilters.exercice.toLowerCase();
+      filtered = filtered.filter(a => (a.exercice?.toString() || '').toLowerCase().includes(val));
+    }
+    if (columnFilters.date) {
+      const val = columnFilters.date.toLowerCase();
+      filtered = filtered.filter(a => {
+        const dateStr = a.date ? new Date(a.date).toLocaleDateString('fr-FR') : '';
+        return dateStr.toLowerCase().includes(val);
+      });
+    }
+    if (columnFilters.type) {
+      const val = columnFilters.type.toLowerCase();
+      filtered = filtered.filter(a => (a.type || '').toLowerCase().includes(val));
+    }
+    if (columnFilters.fournisseur) {
+      const val = columnFilters.fournisseur.toLowerCase();
+      filtered = filtered.filter(a => (a.fournisseur?.nom || '').toLowerCase().includes(val));
+    }
+
+    setFilteredAchats(filtered);
+  };
+
+  // Gestionnaire de changement des filtres
+  const handleFilterChange = (column, value) => {
+    setColumnFilters(prev => ({ ...prev, [column]: value }));
+  };
+
+  // Réinitialiser tous les filtres
+  const resetFilters = () => {
+    setColumnFilters({
+      reference: '',
+      exercice: '',
+      date: '',
+      type: '',
+      fournisseur: ''
+    });
+  };
+
+  // Compter les filtres actifs
+  const getActiveFiltersCount = () => {
+    return Object.values(columnFilters).filter(value => value && value.trim() !== '').length;
   };
 
   const handleSearch = async (e) => {
@@ -172,7 +251,6 @@ const AchatTableExcel = () => {
         setExpandedRow(null);
         return;
       }
-      
       const response = await getPrixByAchat(id);
       setPrixDetails(prev => ({ ...prev, [id]: response.data }));
       setExpandedRow(id);
@@ -192,7 +270,7 @@ const AchatTableExcel = () => {
       type: 'MARCHE',
       observations: '',
       fournisseurId: '',
-      exercice: new Date().getFullYear().toString() // Année courante par défaut
+      exercice: new Date().getFullYear().toString()
     });
     setShowModal(true);
   };
@@ -207,7 +285,7 @@ const AchatTableExcel = () => {
       type: achat.type || 'MARCHE',
       observations: achat.observations || '',
       fournisseurId: achat.fournisseur?.id?.toString() || '',
-      exercice: achat.exercice?.toString() || new Date().getFullYear().toString() // Récupération de l'exercice existant
+      exercice: achat.exercice?.toString() || new Date().getFullYear().toString()
     });
     setShowModal(true);
   };
@@ -224,9 +302,8 @@ const AchatTableExcel = () => {
         ...formData,
         tauxTva: parseFloat(formData.tauxTva),
         fournisseurId: parseInt(formData.fournisseurId),
-        exercice: parseInt(formData.exercice) // Conversion en nombre
+        exercice: parseInt(formData.exercice)
       };
-console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
       if (isEditMode && currentAchat) {
         await updateAchat(currentAchat.id, achatData);
         alert('Achat mis à jour avec succès');
@@ -264,15 +341,6 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
     return qte * pu;
   };
 
-  const calculateMontantTotalFromAchat = (achat) => {
-    if (!achat?.prixList || !Array.isArray(achat.prixList)) return '0.00';
-    const total = achat.prixList.reduce(
-      (sum, prix) => sum + calculatePrixTotalHT(prix),
-      0
-    );
-    return total.toFixed(2);
-  };
-
   const getTypeBadge = (type) => {
     const badges = {
       'MARCHE': 'bg-blue-100 text-blue-800',
@@ -286,14 +354,68 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
     );
   };
 
-  // Fonction pour générer les options d'exercice (5 dernières années)
   const getExerciceOptions = () => {
     const currentYear = new Date().getFullYear();
     const years = [];
-    for (let i = 0; i < 10; i++) { // 10 ans en arrière
+    for (let i = 0; i < 10; i++) {
       years.push(currentYear - i);
     }
-    return years.sort((a, b) => b - a); // Tri décroissant
+    return years.sort((a, b) => b - a);
+  };
+
+  // Composant ColumnFilter pour les filtres par colonne avec icône
+  const ColumnFilter = ({ column, label, value, placeholder }) => {
+    const isActive = activeFilterInput === column;
+    const hasValue = value && value.trim() !== '';
+
+    return (
+      <div className="relative inline-flex items-center gap-1" ref={el => filterInputRefs.current[column] = el}>
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</span>
+        <button
+          onClick={() => setActiveFilterInput(isActive ? null : column)}
+          className={`p-1 rounded-full transition-colors ${
+            hasValue 
+              ? 'text-purple-600 bg-purple-100' 
+              : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'
+          }`}
+          title={hasValue ? `Filtré: ${value}` : 'Filtrer cette colonne'}
+        >
+          <FiSearch size={14} />
+        </button>
+        {isActive && (
+          <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-300 rounded-lg shadow-lg p-2 min-w-[200px]">
+            <div className="relative">
+              <input
+                type="text"
+                value={value}
+                onChange={(e) => handleFilterChange(column, e.target.value)}
+                placeholder={placeholder}
+                className="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                autoFocus
+              />
+              {hasValue && (
+                <button
+                  onClick={() => {
+                    handleFilterChange(column, '');
+                    setActiveFilterInput(null);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <FiX size={14} />
+                </button>
+              )}
+            </div>
+            {hasValue && (
+              <div className="mt-2 pt-2 border-t border-gray-100">
+                <span className="text-xs text-purple-600">
+                  Filtre actif: "{value}"
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) return (
@@ -301,7 +423,7 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
     </div>
   );
-  
+
   if (error) return (
     <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
       <div className="flex items-center">
@@ -324,26 +446,16 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
             </div>
           </div>
         </div>
-        
-        <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg shadow-sm">
-          <div className="flex items-center">
-            <FiDollarSign className="text-green-500 text-3xl mr-3" />
-            <div>
-              <p className="text-sm text-gray-600 font-medium">Montant Total HT</p>
-              <p className="text-2xl font-bold text-gray-800">
-                {stats.totalMontant ? `${parseFloat(stats.totalMontant).toFixed(2)} DH` : '0,00 DH'}
-              </p>
-            </div>
-          </div>
-        </div>
-        
+
+
+
         <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-lg shadow-sm">
           <div className="flex items-center">
             <FiCalendar className="text-purple-500 text-3xl mr-3" />
             <div>
               <p className="text-sm text-gray-600 font-medium">Dernier Achat</p>
               <p className="text-2xl font-bold text-gray-800">
-                {achats.length > 0 
+                {achats.length > 0
                   ? new Date(Math.max(...achats.map(a => new Date(a.date)))).toLocaleDateString('fr-FR')
                   : 'Aucun'}
               </p>
@@ -357,13 +469,12 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
             <div>
               <p className="text-sm text-gray-600 font-medium">Achats sans prix</p>
               <p className="text-2xl font-bold text-gray-800">
-                {achats.filter(a => getNombrePrix(a.id) === 0).length}
+                {filteredAchats.filter(a => getNombrePrix(a.id) === 0).length}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Nouvelle statistique pour l'exercice */}
         <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-lg shadow-sm">
           <div className="flex items-center">
             <FiFolder className="text-indigo-500 text-3xl mr-3" />
@@ -386,7 +497,7 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
               Créez des achats, puis ajoutez les prix via les composants dédiés
             </p>
           </div>
-          
+
           <div className="flex gap-2">
             <button
               onClick={fetchData}
@@ -395,7 +506,7 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
             >
               <FiRefreshCw className="mr-2" /> Actualiser
             </button>
-            
+
             <button
               onClick={openCreateModal}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center transition-colors shadow-md"
@@ -405,7 +516,7 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
           </div>
         </div>
 
-        {/* Barre de recherche */}
+        {/* Barre de recherche globale (optionnelle) */}
         <div className="p-4 border-b border-gray-200 bg-gray-50">
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
             <div className="flex-1 relative">
@@ -439,44 +550,133 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
           </form>
         </div>
 
-        {/* Tableau */}
+        {/* Indicateur des filtres actifs */}
+        {getActiveFiltersCount() > 0 && (
+          <div className="px-4 py-3 bg-blue-50 border-b border-blue-200 flex flex-wrap gap-2 items-center">
+            <span className="text-sm font-medium text-blue-700">Filtres actifs ({getActiveFiltersCount()}):</span>
+            {columnFilters.reference && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
+                Référence: {columnFilters.reference}
+                <button onClick={() => handleFilterChange('reference', '')} className="hover:text-blue-600"><FiX size={12} /></button>
+              </span>
+            )}
+            {columnFilters.exercice && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
+                Exercice: {columnFilters.exercice}
+                <button onClick={() => handleFilterChange('exercice', '')} className="hover:text-blue-600"><FiX size={12} /></button>
+              </span>
+            )}
+            {columnFilters.date && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
+                Date: {columnFilters.date}
+                <button onClick={() => handleFilterChange('date', '')} className="hover:text-blue-600"><FiX size={12} /></button>
+              </span>
+            )}
+            {columnFilters.type && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
+                Type: {columnFilters.type}
+                <button onClick={() => handleFilterChange('type', '')} className="hover:text-blue-600"><FiX size={12} /></button>
+              </span>
+            )}
+            {columnFilters.fournisseur && (
+              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs flex items-center gap-1">
+                Fournisseur: {columnFilters.fournisseur}
+                <button onClick={() => handleFilterChange('fournisseur', '')} className="hover:text-blue-600"><FiX size={12} /></button>
+              </span>
+            )}
+            <button
+              onClick={resetFilters}
+              className="ml-auto text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Tout effacer
+            </button>
+          </div>
+        )}
+
+        {/* Tableau avec filtres par colonne à icônes */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-              
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Référence</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Exercice</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fournisseur</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nb Prix</th>
-                {/* <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant HT</th> */}
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <ColumnFilter 
+                      column="reference" 
+                      label="Référence" 
+                      value={columnFilters.reference}
+                      placeholder="Filtrer par référence..."
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <ColumnFilter 
+                      column="exercice" 
+                      label="Exercice" 
+                      value={columnFilters.exercice}
+                      placeholder="Filtrer par exercice..."
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <ColumnFilter 
+                      column="date" 
+                      label="Date de réception" 
+                      value={columnFilters.date}
+                      placeholder="Filtrer par date (JJ/MM/AAAA)..."
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <ColumnFilter 
+                      column="type" 
+                      label="Type" 
+                      value={columnFilters.type}
+                      placeholder="Filtrer par type..."
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <ColumnFilter 
+                      column="fournisseur" 
+                      label="Fournisseur" 
+                      value={columnFilters.fournisseur}
+                      placeholder="Filtrer par fournisseur..."
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Nb Prix
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {achats.length === 0 ? (
+              {filteredAchats.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center">
                       <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mb-3">
                         <FiFileText size={32} className="text-gray-400" />
                       </div>
                       <p className="text-lg font-medium text-gray-700">Aucun achat trouvé</p>
-                      <p className="text-sm text-gray-500 mt-1">Commencez par créer un nouvel achat</p>
+                      <p className="text-sm text-gray-500 mt-1">Ajustez vos filtres ou créez un nouvel achat</p>
                     </div>
-                  </td>
-                </tr>
+                   </td>
+                 </tr>
               ) : (
-                achats.map(achat => (
+                filteredAchats.map(achat => (
                   <React.Fragment key={achat.id}>
                     <tr className="hover:bg-gray-50 transition-colors">
-
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="text-sm font-mono font-medium text-blue-600">{achat.reference || 'N/A'}</div>
                       </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center">
                           <FiFolder className="mr-1 text-indigo-500" size={14} />
                           <span className="text-sm font-medium text-gray-900">
@@ -507,11 +707,6 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                           {getNombrePrix(achat.id)}
                         </span>
                       </td>
-                      {/* <td className="px-4 py-3 whitespace-nowrap">
-                        <div className={`text-sm font-semibold ${getNombrePrix(achat.id) === 0 ? 'text-gray-500' : 'text-green-600'}`}>
-                          {calculateMontantTotalFromAchat(achat)} DH
-                        </div>
-                      </td> */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex gap-1">
                           <button
@@ -542,7 +737,7 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                     {/* Ligne détaillée avec prix */}
                     {expandedRow === achat.id && (
                       <tr className="bg-gray-50">
-                        <td colSpan="8" className="px-6 py-4">
+                        <td colSpan="7" className="px-6 py-4">
                           <div className="space-y-4">
                             <div className="flex justify-between items-start">
                               <div>
@@ -558,13 +753,13 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                                 <FiChevronUp className="mr-1" /> Masquer
                               </button>
                             </div>
-                            
+
                             <div className="border-t pt-4">
                               <h5 className="font-medium text-gray-700 mb-3 flex items-center">
                                 <FiDollarSign className="mr-2 text-blue-500" /> 
                                 Prix associés ({prixDetails[achat.id]?.length || 0})
                               </h5>
-                              
+
                               {prixDetails[achat.id]?.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                   {prixDetails[achat.id].map((prix, idx) => (
@@ -601,9 +796,24 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
             </tbody>
           </table>
         </div>
+
+        {/* Pied du tableau avec réinitialisation des filtres */}
+        {filteredAchats.length > 0 && (
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+            <span className="text-sm text-gray-700">
+              Affichage de <span className="font-semibold">{filteredAchats.length}</span> achat(s)
+            </span>
+            <button
+              onClick={resetFilters}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Réinitialiser les filtres
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Modal Création/Modification d'achat - UNIQUEMENT SANS PRIX */}
+      {/* Modal Création/Modification d'achat (inchangé) */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
@@ -618,17 +828,14 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                 <FiX size={24} />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="p-6 overflow-y-auto">
               <div className="space-y-6">
-
-
-                {/* Section Informations générales */}
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
                     <FiFileText className="mr-2" /> Informations générales
                   </h4>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -653,7 +860,6 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                       </div>
                     </div>
 
-                    {/* Nouveau champ Exercice */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Exercice * <span className="text-xs text-gray-500">(Année)</span>
@@ -738,7 +944,7 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                             {Array.isArray(fournisseurs) && fournisseurs.length > 0 ? (
                               fournisseurs.map((fournisseur) => (
                                 <option key={fournisseur.id} value={fournisseur.id}>
-                                  {fournisseur.code} - {fournisseur.nom}
+                                   {fournisseur.nom}
                                   {fournisseur.ville && ` (${fournisseur.ville})`}
                                 </option>
                               ))
@@ -768,7 +974,6 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                   </div>
                 </div>
 
-                {/* Résumé */}
                 <div className="grid grid-cols-1 gap-2">
                   <div>
                     <span className="text-sm text-gray-600">Prochaine étape:</span>
@@ -777,7 +982,6 @@ console.log('Données envoyées:', achatData); // AJOUTEZ CETTE LIGNE
                     </div>
                   </div>
                 </div>
-          
               </div>
 
               <div className="flex justify-end gap-3 pt-6 border-t mt-4">

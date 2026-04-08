@@ -22,38 +22,72 @@ import PreparationAffectationMateriel from "./components/achats/PreparationMater
 import PreparationMateriels from "./components/achats/PreparationMateriels";
 import GestionBeneficiaires from "./components/beneficiaire/GestionBeneficiaires";
 import PreparationInventaire from "./components/BPI/PreparationInventaire";
+import Login from "./components/Login/Login";
 
 function App() {
+  // État pour savoir si l'utilisateur est connecté
+  const [isAuthenticated, setIsAuthenticated] = React.useState(() => {
+    // Vérifier si l'utilisateur est déjà connecté (localStorage ou sessionStorage)
+    const user = localStorage.getItem('user') || sessionStorage.getItem('user');
+    return !!user;
+  });
+
+  const handleLoginSuccess = (userData) => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    setIsAuthenticated(false);
+  };
+
+  // Si non authentifié, afficher uniquement la page de login
+  if (!isAuthenticated) {
+    return (
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+          <Route path="*" element={<Login onLoginSuccess={handleLoginSuccess} />} />
+        </Routes>
+      </Router>
+    );
+  }
+
+  // Si authentifié, afficher l'application complète
   return (
     <Router>
       <div className="flex h-screen bg-gray-50">
-        <Sidebar />
+        <Sidebar onLogout={handleLogout} />
 
         <div className="flex-1 flex flex-col ml-64">
-          <Header />
+          <Header onLogout={handleLogout} />
 
           <main className="flex-1 overflow-y-auto p-4">
             <Routes>
               <Route path="/" element={<MaterielsTable />} />
+              <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
               <Route path="/materiels" element={<MaterielsTable />} />
               <Route path="/achats" element={<AchatTable />} />
               <Route path="/achats-excel" element={<AchatTableExcel />} />
-               <Route path="/add-achats-excel" element={<AddPrixExcel/>} />
-               <Route path="/add-achats-manuel" element={<AddPrixManuel/>} />
-                <Route path="/add-achat" element={<AddAchat/>} />
-                 <Route path="/ReaffectationMateriel" element={<ReaffectationMateriel/>} />
-                  <Route path="/AttributionMateriel" element={<AttributionMateriel/>} />
-                   <Route path="/MultiReaffectation" element={<MultiReaffectation/>} />
-                   <Route path="/HistoriqueMateriel" element={<HistoriqueMateriel/>} />
-                   <Route path="/GestionFournisseurs" element={<GestionFournisseurs/>} />
-                   <Route path="/AffectationComplete" element={<AffectationComplete/>} />
-                     <Route path="/ConsultationPrixAchat" element={<ConsultationPrixAchat />} />
-                      <Route path="/attributions/PrisesEnChargeAchat" element={<PrisesEnChargeAchat />} />
-                      <Route path="/prise-en-charge/:achatId" element={<PriseEnCharge />} />
-                      <Route path="/prise-en-charge" element={<PriseEnCharge />} />
-                       <Route path="/preparation-affectation-materiel" element={<PreparationMateriels />} />
-                        <Route path="/gestion-beneficiaires" element={<GestionBeneficiaires />} />
-                        <Route path="/preparation-inventaire" element={<PreparationInventaire/>} />
+              <Route path="/add-achats-excel" element={<AddPrixExcel />} />
+              <Route path="/add-achats-manuel" element={<AddPrixManuel />} />
+              <Route path="/add-achat" element={<AddAchat />} />
+              <Route path="/ReaffectationMateriel" element={<ReaffectationMateriel />} />
+              <Route path="/AttributionMateriel" element={<AttributionMateriel />} />
+              <Route path="/MultiReaffectation" element={<MultiReaffectation />} />
+              <Route path="/HistoriqueMateriel" element={<HistoriqueMateriel />} />
+              <Route path="/GestionFournisseurs" element={<GestionFournisseurs />} />
+              <Route path="/AffectationComplete" element={<AffectationComplete />} />
+              <Route path="/ConsultationPrixAchat" element={<ConsultationPrixAchat />} />
+              <Route path="/attributions/PrisesEnChargeAchat" element={<PrisesEnChargeAchat />} />
+              <Route path="/prise-en-charge/:achatId" element={<PriseEnCharge />} />
+              <Route path="/prise-en-charge" element={<PriseEnCharge />} />
+              <Route path="/preparation-affectation-materiel" element={<PreparationMateriels />} />
+              <Route path="/gestion-beneficiaires" element={<GestionBeneficiaires />} />
+              <Route path="/preparation-inventaire" element={<PreparationInventaire />} />
             </Routes>
           </main>
         </div>

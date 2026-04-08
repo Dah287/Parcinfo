@@ -51,16 +51,12 @@ const GestionBeneficiaires = () => {
   const [departments, setDepartments] = useState([]);
   const [services, setServices] = useState([]);
   
-  // État pour les filtres par colonne
-  const [columnFilters, setColumnFilters] = useState({
-    matricule: '',
-    nomPrenom: '',
-    contact: '',
-    bureau: '',
-    departement: '',
-    service: '',
-    fonction: ''
-  });
+  // États pour les filtres et recherche
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBureau, setSelectedBureau] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [selectedService, setSelectedService] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   
   // État pour le formulaire
   const [formData, setFormData] = useState({
@@ -83,10 +79,10 @@ const GestionBeneficiaires = () => {
     loadInitialData();
   }, []);
 
-  // Appliquer les filtres quand les données ou les filtres changent
+  // Charger les bénéficiaires quand les filtres changent
   useEffect(() => {
     filterBeneficiaires();
-  }, [columnFilters, beneficiaires]);
+  }, [searchTerm, selectedBureau, selectedDepartment, selectedService, beneficiaires]);
 
   // Charger toutes les données initiales
   const loadInitialData = async () => {
@@ -114,80 +110,132 @@ const GestionBeneficiaires = () => {
     }
   };
 
-  // Filtrer les bénéficiaires selon les filtres de colonne
+  // Filtrer les bénéficiaires
   const filterBeneficiaires = () => {
     let filtered = [...beneficiaires];
     
-    // Filtre par matricule
-    if (columnFilters.matricule) {
-      const val = columnFilters.matricule.toLowerCase();
-      filtered = filtered.filter(b => (b.matricule || '').toLowerCase().includes(val));
-    }
-    
-    // Filtre par nom et prénom
-    if (columnFilters.nomPrenom) {
-      const val = columnFilters.nomPrenom.toLowerCase();
-      filtered = filtered.filter(b => {
-        const fullName = `${b.nom || ''} ${b.prenom || ''}`.toLowerCase();
-        return fullName.includes(val);
-      });
-    }
-    
-    // Filtre par contact (email + téléphone)
-    if (columnFilters.contact) {
-      const val = columnFilters.contact.toLowerCase();
-      filtered = filtered.filter(b => {
-        const contact = `${b.email || ''} ${b.telephone || ''}`.toLowerCase();
-        return contact.includes(val);
-      });
+    // Filtre par recherche
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(b => 
+        (b.nom && b.nom.toLowerCase().includes(searchLower)) ||
+        (b.prenom && b.prenom.toLowerCase().includes(searchLower)) ||
+        (b.email && b.email.toLowerCase().includes(searchLower)) ||
+        (b.matricule && b.matricule.toLowerCase().includes(searchLower)) ||
+        (b.fonction && b.fonction.toLowerCase().includes(searchLower)) ||
+        (b.bureau?.name?.toLowerCase().includes(searchLower)) ||
+        (b.department?.name?.toLowerCase().includes(searchLower)) ||
+        (b.service?.name?.toLowerCase().includes(searchLower))
+      );
     }
     
     // Filtre par bureau
-    if (columnFilters.bureau) {
-      const val = columnFilters.bureau.toLowerCase();
-      filtered = filtered.filter(b => (b.bureau?.name || '').toLowerCase().includes(val));
+    if (selectedBureau) {
+      filtered = filtered.filter(b => b.bureau?.id === parseInt(selectedBureau));
     }
     
     // Filtre par département
-    if (columnFilters.departement) {
-      const val = columnFilters.departement.toLowerCase();
-      filtered = filtered.filter(b => (b.department?.name || '').toLowerCase().includes(val));
+    if (selectedDepartment) {
+      filtered = filtered.filter(b => b.department?.id === parseInt(selectedDepartment));
     }
     
     // Filtre par service
-    if (columnFilters.service) {
-      const val = columnFilters.service.toLowerCase();
-      filtered = filtered.filter(b => (b.service?.name || '').toLowerCase().includes(val));
-    }
-    
-    // Filtre par fonction
-    if (columnFilters.fonction) {
-      const val = columnFilters.fonction.toLowerCase();
-      filtered = filtered.filter(b => (b.fonction || '').toLowerCase().includes(val));
+    if (selectedService) {
+      filtered = filtered.filter(b => b.service?.id === parseInt(selectedService));
     }
     
     setFilteredBeneficiaires(filtered);
   };
 
-  // Réinitialiser les filtres
-  const resetFilters = () => {
-    setColumnFilters({
-      matricule: '',
-      nomPrenom: '',
-      contact: '',
-      bureau: '',
-      departement: '',
-      service: '',
-      fonction: ''
-    });
+  // Recherche avancée via API
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) {
+      filterBeneficiaires();
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await searchBeneficiaires(searchTerm);
+      setFilteredBeneficiaires(response.data || []);
+    } catch (error) {
+      console.error('Erreur recherche:', error);
+      toast.error('Erreur lors de la recherche');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Gestionnaire de changement pour les filtres
-  const handleFilterChange = (column, value) => {
-    setColumnFilters(prev => ({
-      ...prev,
-      [column]: value
-    }));
+  // Filtrer par bureau via API
+  const handleBureauFilter = async (bureauId) => {
+    setSelectedBureau(bureauId);
+    
+    if (!bureauId) {
+      filterBeneficiaires();
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await getBeneficiairesByBureau(bureauId);
+      setFilteredBeneficiaires(response.data || []);
+    } catch (error) {
+      console.error('Erreur filtrage:', error);
+      toast.error('Erreur lors du filtrage par bureau');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filtrer par département via API
+  const handleDepartmentFilter = async (departmentId) => {
+    setSelectedDepartment(departmentId);
+    
+    if (!departmentId) {
+      filterBeneficiaires();
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await getBeneficiairesByDepartment(departmentId);
+      setFilteredBeneficiaires(response.data || []);
+    } catch (error) {
+      console.error('Erreur filtrage:', error);
+      toast.error('Erreur lors du filtrage par département');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filtrer par service via API
+  const handleServiceFilter = async (serviceId) => {
+    setSelectedService(serviceId);
+    
+    if (!serviceId) {
+      filterBeneficiaires();
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await getBeneficiairesByService(serviceId);
+      setFilteredBeneficiaires(response.data || []);
+    } catch (error) {
+      console.error('Erreur filtrage:', error);
+      toast.error('Erreur lors du filtrage par service');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Réinitialiser les filtres
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedBureau('');
+    setSelectedDepartment('');
+    setSelectedService('');
+    setFilteredBeneficiaires(beneficiaires);
   };
 
   // Ouvrir le modal pour créer
@@ -411,7 +459,9 @@ const GestionBeneficiaires = () => {
   };
 
   return (
-    <div className="w-full p-6">
+<div className="w-full p-6">
+
+
       {/* Styles CSS pour le tableau avec scroll horizontal */}
       <style jsx>{`
         .table-container {
@@ -421,7 +471,7 @@ const GestionBeneficiaires = () => {
         }
         
         .beneficiaires-table {
-          min-width: 1400px; /* Largeur minimale ajustée pour les filtres */
+          min-width: 1200px; /* Largeur minimale pour éviter que les colonnes ne se chevauchent */
           width: 100%;
           border-collapse: collapse;
         }
@@ -432,8 +482,6 @@ const GestionBeneficiaires = () => {
           background-color: #f9fafb;
           z-index: 10;
           white-space: nowrap;
-          vertical-align: top;
-          padding: 0.75rem 1.5rem;
         }
         
         .beneficiaires-table td {
@@ -441,7 +489,6 @@ const GestionBeneficiaires = () => {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          padding: 1rem 1.5rem;
         }
         
         .beneficiaires-table td:hover {
@@ -495,25 +542,9 @@ const GestionBeneficiaires = () => {
         .table-container::-webkit-scrollbar-thumb:hover {
           background: #94a3b8;
         }
-
-        /* Style pour les inputs de filtre */
-        .filter-input {
-          width: 100%;
-          padding: 0.25rem 0.5rem;
-          margin-top: 0.5rem;
-          font-size: 0.75rem;
-          border: 1px solid #d1d5db;
-          border-radius: 0.25rem;
-          background-color: white;
-        }
-        .filter-input:focus {
-          outline: none;
-          ring: 2px solid #6366f1;
-          border-color: #6366f1;
-        }
       `}</style>
 
-      {/* En-tête avec statistiques et boutons d'action */}
+      {/* En-tête */}
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-6 mb-6 text-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -527,25 +558,61 @@ const GestionBeneficiaires = () => {
               </p>
             </div>
           </div>
+          <button
+            onClick={handleOpenCreate}
+            className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 transition-colors flex items-center"
+          >
+            <FiPlus className="mr-2" />
+            Nouveau bénéficiaire
+          </button>
+        </div>
+      </div>
+
+      {/* Barre de recherche et filtres */}
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6 border border-gray-200">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="Rechercher par nom, prénom, email, matricule, bureau, département, service..."
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <FiSearch className="absolute left-3 top-3.5 text-gray-400" size={18} />
+          </div>
+          
           <div className="flex gap-2">
             <button
-              onClick={handleOpenCreate}
-              className="bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 transition-colors flex items-center"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
+                showFilters || selectedBureau || selectedDepartment || selectedService
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              <FiPlus className="mr-2" />
-              Nouveau
+              <FiFilter className="mr-2" />
+              Filtres
+              {(selectedBureau || selectedDepartment || selectedService) && (
+                <span className="ml-2 bg-white text-indigo-600 text-xs px-2 py-0.5 rounded-full">
+                  {[selectedBureau, selectedDepartment, selectedService].filter(Boolean).length}
+                </span>
+              )}
             </button>
+            
             <button
               onClick={exportToCSV}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
               disabled={filteredBeneficiaires.length === 0}
             >
               <FiDownload className="mr-2" />
               Export
             </button>
+            
             <button
               onClick={loadInitialData}
-              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
               disabled={loading}
             >
               <FiRefreshCw className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -553,83 +620,101 @@ const GestionBeneficiaires = () => {
             </button>
           </div>
         </div>
+
+        {/* Filtres avancés */}
+        {showFilters && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <FiHome className="mr-2 text-indigo-500" />
+                  Bureau
+                </label>
+                <select
+                  value={selectedBureau}
+                  onChange={(e) => handleBureauFilter(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Tous les bureaux</option>
+                  {bureaux.map(bureau => (
+                    <option key={bureau.id} value={bureau.id}>{bureau.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <FiLayers className="mr-2 text-indigo-500" />
+                  Département
+                </label>
+                <select
+                  value={selectedDepartment}
+                  onChange={(e) => handleDepartmentFilter(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Tous les départements</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  <FiGrid className="mr-2 text-indigo-500" />
+                  Service
+                </label>
+                <select
+                  value={selectedService}
+                  onChange={(e) => handleServiceFilter(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Tous les services</option>
+                  {services.map(service => (
+                    <option key={service.id} value={service.id}>{service.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex items-end">
+                <button
+                  onClick={resetFilters}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors w-full"
+                >
+                  Réinitialiser les filtres
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Tableau des bénéficiaires avec filtres dans l'en-tête */}
+      {/* Tableau des bénéficiaires avec scroll horizontal */}
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
         <div className="table-container">
           <table className="beneficiaires-table">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div>Matricule</div>
-                  <input
-                    type="text"
-                    value={columnFilters.matricule}
-                    onChange={(e) => handleFilterChange('matricule', e.target.value)}
-                    placeholder="Filtrer..."
-                    className="filter-input"
-                  />
+                  Matricule
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div>Nom & Prénom</div>
-                  <input
-                    type="text"
-                    value={columnFilters.nomPrenom}
-                    onChange={(e) => handleFilterChange('nomPrenom', e.target.value)}
-                    placeholder="Filtrer..."
-                    className="filter-input"
-                  />
+                  Nom & Prénom
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div>Contact</div>
-                  <input
-                    type="text"
-                    value={columnFilters.contact}
-                    onChange={(e) => handleFilterChange('contact', e.target.value)}
-                    placeholder="Filtrer..."
-                    className="filter-input"
-                  />
+                  Contact
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div>Bureau</div>
-                  <input
-                    type="text"
-                    value={columnFilters.bureau}
-                    onChange={(e) => handleFilterChange('bureau', e.target.value)}
-                    placeholder="Filtrer..."
-                    className="filter-input"
-                  />
+                  Bureau
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div>Département</div>
-                  <input
-                    type="text"
-                    value={columnFilters.departement}
-                    onChange={(e) => handleFilterChange('departement', e.target.value)}
-                    placeholder="Filtrer..."
-                    className="filter-input"
-                  />
+                  Département
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div>Service</div>
-                  <input
-                    type="text"
-                    value={columnFilters.service}
-                    onChange={(e) => handleFilterChange('service', e.target.value)}
-                    placeholder="Filtrer..."
-                    className="filter-input"
-                  />
+                  Service
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div>Fonction</div>
-                  <input
-                    type="text"
-                    value={columnFilters.fonction}
-                    onChange={(e) => handleFilterChange('fonction', e.target.value)}
-                    placeholder="Filtrer..."
-                    className="filter-input"
-                  />
+                  Fonction
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -652,8 +737,8 @@ const GestionBeneficiaires = () => {
                     <FiInfo className="mx-auto text-gray-400 text-4xl mb-3" />
                     <p className="text-gray-500 text-lg">Aucun bénéficiaire trouvé</p>
                     <p className="text-gray-400 text-sm mt-1">
-                      {Object.values(columnFilters).some(v => v)
-                        ? 'Essayez de modifier vos filtres'
+                      {searchTerm || selectedBureau || selectedDepartment || selectedService
+                        ? 'Essayez de modifier vos filtres' 
                         : 'Cliquez sur "Nouveau bénéficiaire" pour en créer un'}
                     </p>
                   </td>
@@ -774,18 +859,15 @@ const GestionBeneficiaires = () => {
               <span className="text-sm text-gray-700">
                 Affichage de <span className="font-semibold">{filteredBeneficiaires.length}</span> bénéficiaire(s)
               </span>
-              <button
-                onClick={resetFilters}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                Réinitialiser les filtres
-              </button>
+              <span className="text-sm text-gray-500">
+                Total: {beneficiaires.length} bénéficiaire(s)
+              </span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal pour création/édition/visualisation (inchangé) */}
+      {/* Modal pour création/édition/visualisation */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
