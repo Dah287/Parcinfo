@@ -1,7 +1,10 @@
 package com.example.parcinfo.config;
 
-
-import jakarta.servlet.*;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -34,8 +37,7 @@ public class JwtFilter implements Filter {
                 String username = jwtUtil.getUsername(token);
                 String role = jwtUtil.getRole(token);
 
-                // ✅ Ajouter "ROLE_" pour que Spring reconnaisse le rôle
-                SimpleGrantedAuthority  authority = new SimpleGrantedAuthority("ROLE_" + role);
+                SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(username, null, Collections.singleton(authority));

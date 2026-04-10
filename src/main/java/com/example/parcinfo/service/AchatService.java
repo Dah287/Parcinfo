@@ -11,7 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
+
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -158,8 +159,39 @@ public class AchatService {
         // Récupérer l'exercice de l'achat (String)
         String exercice = achat.getExercice();
         if (exercice == null || exercice.trim().isEmpty()) {
-            // Si l'exercice n'est pas défini, utiliser l'année courante
             exercice = String.valueOf(java.time.Year.now().getValue());
+        }
+
+        // Récupérer tous les prix existants pour cet achat
+        List<Prix> prixExistants = prixRepository.findByAchatId(achatId);
+
+        // Créer un ensemble des numéros de prix existants
+        Set<String> numerosExistants = prixExistants.stream()
+                .map(Prix::getNumeroPrix)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // Vérifier les doublons dans la liste à ajouter
+        Set<String> numerosDansRequete = new HashSet<>();
+        List<String> doublons = new ArrayList<>();
+
+        for (PrixDTO prixDTO : prixDTOList) {
+            String numeroPrix = prixDTO.getNumeroPrix();
+
+            // Vérifier les doublons dans la même requête
+            if (numerosDansRequete.contains(numeroPrix)) {
+                doublons.add(numeroPrix);
+            }
+            numerosDansRequete.add(numeroPrix);
+
+            // Vérifier les doublons avec la base de données
+            if (numerosExistants.contains(numeroPrix)) {
+                throw new RuntimeException("Le numéro de prix '" + numeroPrix + "' existe déjà pour cet achat !");
+            }
+        }
+
+        if (!doublons.isEmpty()) {
+            throw new RuntimeException("Doublons détectés dans la liste des prix : " + String.join(", ", doublons));
         }
 
         for (PrixDTO prixDTO : prixDTOList) {

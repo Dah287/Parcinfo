@@ -2,6 +2,7 @@ package com.example.parcinfo.service;
 
 import com.example.parcinfo.controller.MaterielsPreparationResponse;
 import com.example.parcinfo.dto.*;
+import com.example.parcinfo.exception.ValidationException;
 import com.example.parcinfo.model.Material;
 import com.example.parcinfo.model.Beneficiaire;
 import com.example.parcinfo.model.Prix;
@@ -306,77 +307,81 @@ public class MaterialService {
         Prix prix = prixRepository.findById(prixId)
                 .orElseThrow(() -> new RuntimeException("Prix non trouvé: " + prixId));
 
-        // 🔁 Permettre les mises à jour partielles : ne pas vérifier la quantité exacte
-        // if (preparationData.size() != prix.getQuantite()) { ... } // ← SUPPRIMÉ
-
         List<Material> materielsExistants = materialRepository.findByPrixIdOrdered(prixId);
 
-        // Map pour lookup rapide par index ou par série existante
-        Map<Integer, Material> byIndex = new HashMap<>();
-        Map<String, Material> bySerie = new HashMap<>();
-
-        for (int i = 0; i < materielsExistants.size(); i++) {
-            Material m = materielsExistants.get(i);
-            byIndex.put(i, m);
-            if (m.getNumeroSerie() != null) {
-                bySerie.put(m.getNumeroSerie(), m);
-            }
-        }
+        // Map pour lookup rapide par ID
+        Map<Long, Material> byId = materielsExistants.stream()
+                .collect(Collectors.toMap(Material::getId, m -> m));
 
         List<Material> result = new ArrayList<>();
         List<String> errors = new ArrayList<>();
 
+        // 🔥 Track des séries pour détecter les doublons DANS le batch
+        Set<String> seriesDansBatch = new HashSet<>();
+        Set<String> ecransDansBatch = new HashSet<>();
+
         for (int i = 0; i < preparationData.size(); i++) {
             MaterielPreparationDTO dto = preparationData.get(i);
+            int ligne = i + 1;
 
+            // 🔥 Validation 1: N° Série Matériel requis
             if (dto.getNumeroSerie() == null || dto.getNumeroSerie().isBlank()) {
-                errors.add("Ligne " + (i+1) + ": N° Série Matériel requis");
+                errors.add("Ligne " + ligne + ": N° Série Matériel requis");
                 continue;
             }
 
-            // 🔍 Trouver le matériel : par index d'abord, puis par série existante
-            Material materiel = byIndex.get(i);
+            // 🔥 Validation 2: Trouver le matériel par ID (plus fiable que l'index)
+            Material materiel = byId.get(dto.getMaterialId());
             if (materiel == null) {
-                materiel = bySerie.get(dto.getNumeroSerie());
-            }
-            if (materiel == null) {
-                errors.add("Ligne " + (i+1) + ": Matériel non trouvé pour série: " + dto.getNumeroSerie());
+                errors.add("Ligne " + ligne + ": Matériel non trouvé (ID: " + dto.getMaterialId() + ")");
                 continue;
             }
 
-            // ✅ Valider et mettre à jour N° Série Matériel
             String newSerie = dto.getNumeroSerie().trim().toUpperCase();
-            if (!newSerie.equals(materiel.getNumeroSerie())) {
-                if (materialRepository.existsByNumeroSerieAndIdNot(newSerie, materiel.getId())) {
-                    errors.add("N° Série '" + newSerie + "' déjà utilisé (ligne " + (i+1) + ")");
-                    continue;
-                }
-                materiel.setNumeroSerie(newSerie);
+
+            // 🔥 Validation 3: Doublon dans le batch d'import
+            if (seriesDansBatch.contains(newSerie)) {
+                errors.add("Ligne " + ligne + ": Série '" + newSerie + "' en doublon dans ce lot");
+                continue;
             }
 
-            // ✅ Valider et mettre à jour N° Série Écran (optionnel)
+            // 🔥 Validation 4: Doublon en base (hors ce matériel)
+            if (materialRepository.existsByNumeroSerieAndIdNot(newSerie, materiel.getId())) {
+                errors.add("Ligne " + ligne + ": Série '" + newSerie + "' déjà utilisée en base");
+                continue;
+            }
+
+            seriesDansBatch.add(newSerie);
+            materiel.setNumeroSerie(newSerie);
+
+            // 🔥 Validation Écran (optionnel mais avec mêmes règles)
             if (dto.getNumeroSerieEcran() != null && !dto.getNumeroSerieEcran().isBlank()) {
                 String newEcran = dto.getNumeroSerieEcran().trim().toUpperCase();
-                if (!newEcran.equals(materiel.getNumeroSerieEcran())) {
-                    if (materialRepository.existsByNumeroSerieEcranAndIdNot(newEcran, materiel.getId())) {
-                        errors.add("N° Série Écran '" + newEcran + "' déjà utilisé (ligne " + (i+1) + ")");
-                        continue;
-                    }
-                    materiel.setNumeroSerieEcran(newEcran);
+
+                if (ecransDansBatch.contains(newEcran)) {
+                    errors.add("Ligne " + ligne + ": Série écran '" + newEcran + "' en doublon dans ce lot");
+                    continue;
                 }
+
+                if (materialRepository.existsByNumeroSerieEcranAndIdNot(newEcran, materiel.getId())) {
+                    errors.add("Ligne " + ligne + ": Série écran '" + newEcran + "' déjà utilisée en base");
+                    continue;
+                }
+
+                ecransDansBatch.add(newEcran);
+                materiel.setNumeroSerieEcran(newEcran);
             }
 
-            // ✅ Observations
             if (dto.getObservations() != null) {
                 materiel.setObservations(dto.getObservations());
             }
 
-          //  materiel.setDatePreparation(new Date()); // Optionnel : timestamp
             result.add(materialRepository.save(materiel));
         }
 
         if (!errors.isEmpty()) {
-            throw new RuntimeException("Erreurs de validation: " + String.join("; ", errors));
+            // 🔥 Retourner les erreurs de façon structurée pour le frontend
+            throw new ValidationException("Erreurs de validation", errors);
         }
 
         return result;

@@ -1,50 +1,64 @@
+// GlobalExceptionHandler.java
 package com.example.parcinfo.exception;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.HttpStatus;
+import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-@RestControllerAdvice
 @Slf4j
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
-        Map<String, String> errors = new HashMap<>();
-        ex.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
-        return ResponseEntity.badRequest().body(new ErrorResponse("Validation Error", errors));
+    // 🔥 Gestion spécifique de ValidationException - LOG WARN (pas ERROR)
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleValidationException(ValidationException ex) {
+
+        // Log en WARN avec détails pour le débogage, sans stacktrace complète
+        log.warn("Validation échouée: {} - Erreurs: {}", ex.getMessage(), ex.getErrors());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", ex.getMessage());
+        response.put("errors", ex.getErrors()); // 🔥 Liste des erreurs détaillées
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.BAD_REQUEST.value());
+
+        return ResponseEntity.badRequest().body(response);
     }
 
+    // Gestion des autres Runtime Exceptions
     @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponse> handleRuntimeException(RuntimeException ex) {
+    public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
+
+        // Log en ERROR avec stacktrace pour les vraies erreurs
         log.error("Runtime exception: {}", ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse("Error", ex.getMessage()));
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", ex.getMessage());
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
+    // Gestion générique pour autres exceptions
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        log.error("Unexpected error: {}", ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse("Internal Server Error", "Une erreur inattendue est survenue"));
-    }
+    public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
 
-    @Data
-    @AllArgsConstructor
-    static class ErrorResponse {
-        private String status;
-        private Object message;
+        log.error("Exception non gérée: {}", ex.getMessage(), ex);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", "Une erreur interne est survenue");
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }

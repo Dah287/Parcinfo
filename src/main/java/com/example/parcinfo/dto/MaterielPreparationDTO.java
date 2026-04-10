@@ -1,5 +1,6 @@
 package com.example.parcinfo.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,7 +15,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MaterielPreparationDTO {
-
+    @NotNull(message = "materialId requis")
+    private Long materialId;  // 🔥 Nouveau: ID du matériel à mettre à jour
     private String numeroSerie;        // 🔴 OBLIGATOIRE - Clé d'identification
     private String numeroSerieEcran;   // 🟡 OPTIONNEL - Si écran associé
     private String observations;       // 🟡 OPTIONNEL
