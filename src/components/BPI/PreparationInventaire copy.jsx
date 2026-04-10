@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   FiSave, FiCheck, FiX, FiSearch, FiPackage, FiHash,
-  FiUser, FiChevronDown, FiChevronUp, FiAlertCircle,
-  FiUpload, FiDownload, FiEdit2, FiTruck, FiCalendar
+  FiUser, FiChevronDown, FiChevronUp, FiAlertCircle
 } from 'react-icons/fi';
-import { FaFileExcel } from 'react-icons/fa';
-import * as XLSX from 'xlsx';
 import { getAllAchats } from '../../services/achatService';
 import { getAllBeneficiaires } from '../../services/beneficiareService';
 import { 
@@ -14,7 +11,7 @@ import {
 } from '../../services/materialService';
 import { toast } from 'react-toastify';
 
-const PreparationInventaire = ({ onComplete }) => {
+const PreparationInventaireSimple = ({ onComplete }) => {
   // === ÉTATS ===
   const [achats, setAchats] = useState([]);
   const [beneficiaires, setBeneficiaires] = useState([]);
@@ -33,14 +30,6 @@ const PreparationInventaire = ({ onComplete }) => {
   
   // Édition des numéros d'inventaire : key = materiel.id
   const [inventaires, setInventaires] = useState({});
-  
-  // État des modifications originales pour détecter les changements
-  const [originalInventaires, setOriginalInventaires] = useState({});
-  
-  // Import Excel
-  const [importData, setImportData] = useState([]);
-  const [importErrors, setImportErrors] = useState([]);
-  const [showImportPreview, setShowImportPreview] = useState(false);
 
   // === CHARGEMENT INITIAL ===
   useEffect(() => {
@@ -72,10 +61,6 @@ const PreparationInventaire = ({ onComplete }) => {
     setSelectedBeneficiaire(null);
     setMateriels([]);
     setInventaires({});
-    setOriginalInventaires({});
-    setImportData([]);
-    setImportErrors([]);
-    setShowImportPreview(false);
     setShowAchatDropdown(false);
     setSearchAchat('');
   };
@@ -87,10 +72,6 @@ const PreparationInventaire = ({ onComplete }) => {
     setSearchBenef('');
     setMateriels([]);
     setInventaires({});
-    setOriginalInventaires({});
-    setImportData([]);
-    setImportErrors([]);
-    setShowImportPreview(false);
     
     if (!selectedAchat) return;
     
@@ -106,14 +87,12 @@ const PreparationInventaire = ({ onComplete }) => {
       
       // Pré-remplir les valeurs existantes
       const initial = {};
-      const original = {};
       data.forEach(m => {
-        const invValue = m.numeroInventaire || '';
-        initial[m.id] = invValue;
-        original[m.id] = invValue;
+        if (m.numeroInventaire) {
+          initial[m.id] = m.numeroInventaire;
+        }
       });
       setInventaires(initial);
-      setOriginalInventaires(original);
       
       toast.success(`${data.length} matériel(s) chargé(s)`);
     } catch (error) {
@@ -132,155 +111,6 @@ const PreparationInventaire = ({ onComplete }) => {
     }));
   };
 
-  // === TÉLÉCHARGER TEMPLATE EXCEL ===
-  const downloadTemplate = () => {
-    if (!selectedAchat || !selectedBeneficiaire || materiels.length === 0) {
-      toast.warning('Veuillez sélectionner un achat et un bénéficiaire avec des matériels');
-      return;
-    }
-
-    const template = materiels.map(m => ({
-      'N° Série Matériel (Non modifiable)': m.numeroSerie,
-      'Nature': m.prix?.nature || m.type?.designation || '-',
-      'Désignation': m.prix?.designation || m.marque || '-',
-      'N° d\'Inventaire': m.numeroInventaire || '',
-      'Observations': ''
-    }));
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(template);
-    
-    // Ajuster la largeur des colonnes
-    ws['!cols'] = [
-      { wch: 25 }, // N° Série (non modifiable)
-      { wch: 15 }, // Nature
-      { wch: 30 }, // Désignation
-      { wch: 20 }, // N° d'Inventaire
-      { wch: 30 }  // Observations
-    ];
-    
-    XLSX.utils.book_append_sheet(wb, ws, 'Inventaire');
-    XLSX.writeFile(wb, `inventaire_${selectedAchat.reference}_${selectedBeneficiaire.matricule || selectedBeneficiaire.id}.xlsx`);
-    toast.success('Template téléchargé');
-  };
-
-  // === IMPORT EXCEL ===
-  const handleFileImport = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, { type: 'array' });
-        const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-
-        const errors = [];
-        const validData = [];
-        const inventaireMap = new Map();
-
-        // Créer un map des séries existantes pour validation rapide
-        const existingSerieMap = new Map();
-        materiels.forEach(m => {
-          existingSerieMap.set(m.numeroSerie, m);
-        });
-
-        json.forEach((row, idx) => {
-          const ligne = idx + 2;
-          // Lire la colonne N° Série (avec ou sans mention "Non modifiable")
-          const numeroSerie = (row['N° Série Matériel (Non modifiable)'] || row['N° Série Matériel'])?.toString().trim();
-          const nouveauInventaire = row['N° d\'Inventaire']?.toString().trim();
-          
-          const lineErrors = [];
-          
-          // Vérifier si la série existe dans les matériels
-          if (!numeroSerie) {
-            lineErrors.push('N° Série Matériel requis');
-          } else if (!existingSerieMap.has(numeroSerie)) {
-            lineErrors.push(`N° Série "${numeroSerie}" non trouvé dans la liste des matériels`);
-          }
-          
-          // Vérifier si le numéro d'inventaire est fourni
-          if (!nouveauInventaire) {
-            lineErrors.push('N° d\'Inventaire requis');
-          } else {
-            // Vérifier les doublons dans le fichier
-            if (inventaireMap.has(nouveauInventaire)) {
-              lineErrors.push(`N° d\'Inventaire "${nouveauInventaire}" en double (ligne ${inventaireMap.get(nouveauInventaire)})`);
-            } else {
-              inventaireMap.set(nouveauInventaire, ligne);
-            }
-            
-            // Vérifier si le numéro d'inventaire existe déjà pour un autre matériel
-            const existingMaterial = materiels.find(m => 
-              m.numeroInventaire === nouveauInventaire && m.numeroSerie !== numeroSerie
-            );
-            if (existingMaterial) {
-              lineErrors.push(`N° d\'Inventaire "${nouveauInventaire}" déjà utilisé par un autre matériel (série: ${existingMaterial.numeroSerie})`);
-            }
-          }
-
-          if (lineErrors.length > 0) {
-            errors.push({ ligne, erreurs: lineErrors, data: row });
-          } else {
-            // Trouver l'ID du matériel correspondant
-            const materiel = existingSerieMap.get(numeroSerie);
-            validData.push({
-              materielId: materiel.id,
-              numeroSerie: numeroSerie,
-              numeroInventaire: nouveauInventaire.toUpperCase(),
-              observations: row['Observations']?.toString().trim() || null
-            });
-          }
-        });
-
-        setImportData(validData);
-        setImportErrors(errors);
-        setShowImportPreview(true);
-
-        if (errors.length === 0) {
-          toast.success(`${validData.length} numéro(s) d'inventaire prêts à importer`);
-        } else {
-          toast.warning(`${errors.length} erreur(s) dans le fichier`);
-        }
-
-      } catch (err) {
-        toast.error('Erreur lecture fichier');
-        console.error(err);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    event.target.value = null;
-  };
-
-  // === APPLIQUER L'IMPORT ===
-  const applyImport = () => {
-    if (importData.length === 0) {
-      toast.warning('Aucune donnée valide à importer');
-      return;
-    }
-
-    // Appliquer les valeurs importées aux inventaires
-    const newInventaires = { ...inventaires };
-    importData.forEach(item => {
-      newInventaires[item.materielId] = item.numeroInventaire;
-    });
-    setInventaires(newInventaires);
-    
-    toast.success(`${importData.length} numéro(s) d'inventaire importés`);
-    setShowImportPreview(false);
-    setImportData([]);
-    setImportErrors([]);
-  };
-
-  // === ANNULER L'IMPORT ===
-  const cancelImport = () => {
-    setShowImportPreview(false);
-    setImportData([]);
-    setImportErrors([]);
-  };
-
   // === ENREGISTREMENT ===
   const handleSave = async () => {
     if (!selectedAchat || !selectedBeneficiaire) {
@@ -292,13 +122,10 @@ const PreparationInventaire = ({ onComplete }) => {
     const updates = materiels
       .map(m => {
         const newVal = inventaires[m.id]?.trim();
-        const oldVal = originalInventaires[m.id]?.trim();
-        // Inclure si : nouvelle valeur ET différente de l'ancienne
-        if (newVal && newVal !== oldVal) {
-          return { 
-            numeroSerie: m.numeroSerie, 
-            numeroInventaire: newVal 
-          };
+        const oldVal = m.numeroInventaire?.trim();
+        // Inclure si : nouvelle valeur ET (pas d'ancienne OU différente)
+        if (newVal && (!oldVal || newVal !== oldVal)) {
+          return { numeroSerie: m.numeroSerie, numeroInventaire: newVal };
         }
         return null;
       })
@@ -340,10 +167,6 @@ const PreparationInventaire = ({ onComplete }) => {
     setSelectedBeneficiaire(null);
     setMateriels([]);
     setInventaires({});
-    setOriginalInventaires({});
-    setImportData([]);
-    setImportErrors([]);
-    setShowImportPreview(false);
   };
 
   // === FORMATAGE ===
@@ -354,22 +177,15 @@ const PreparationInventaire = ({ onComplete }) => {
     total: materiels.length,
     withInventaire: materiels.filter(m => inventaires[m.id]?.trim()).length,
     modified: materiels.filter(m => {
-      const oldVal = originalInventaires[m.id]?.trim();
+      const oldVal = m.numeroInventaire?.trim();
       const newVal = inventaires[m.id]?.trim();
       return newVal && newVal !== oldVal;
     }).length
   };
 
-  // === Vérifier si un matériel a été modifié ===
-  const isModified = (materielId) => {
-    const oldVal = originalInventaires[materielId]?.trim();
-    const newVal = inventaires[materielId]?.trim();
-    return newVal && newVal !== oldVal;
-  };
-
   // === RENDER ===
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 w-full">
+<div className="bg-white rounded-xl shadow-lg p-6 w-full">
       
       {/* En-tête */}
       <div className="mb-6 pb-4 border-b border-gray-200">
@@ -518,7 +334,6 @@ const PreparationInventaire = ({ onComplete }) => {
                   setSelectedBeneficiaire(null);
                   setMateriels([]);
                   setInventaires({});
-                  setOriginalInventaires({});
                 }} 
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -532,65 +347,16 @@ const PreparationInventaire = ({ onComplete }) => {
       {/* Liste des Matériels (si bénéficiaire sélectionné) */}
       {selectedBeneficiaire && (
         <div className="mt-6">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-gray-800">
               Matériels avec N° Série ({stats.total})
             </h3>
-            <div className="flex gap-2">
-              {stats.total > 0 && (
-                <>
-                  <button
-                    onClick={downloadTemplate}
-                    className="px-3 py-1.5 text-sm border bg-white rounded-lg hover:bg-gray-50 flex items-center"
-                  >
-                    <FiDownload className="mr-1" size={14} /> Template Excel
-                  </button>
-                  <label className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center cursor-pointer">
-                    <FiUpload className="mr-1" size={14} /> Importer Excel
-                    <input type="file" accept=".xlsx,.xls" onChange={handleFileImport} className="hidden" />
-                  </label>
-                </>
-              )}
+            {stats.total > 0 && (
               <span className="text-xs text-gray-500">
                 {stats.withInventaire} avec inventaire • {stats.modified} modifié(s)
               </span>
-            </div>
+            )}
           </div>
-
-          {/* Aperçu Import */}
-          {showImportPreview && (
-            <div className="mb-4 p-4 bg-white border border-blue-200 rounded-lg">
-              <div className="flex justify-between mb-3">
-                <span className="font-medium">{importData.length} numéro(s) à importer</span>
-                <button onClick={cancelImport} className="text-gray-400 hover:text-gray-600">
-                  <FiX size={16} />
-                </button>
-              </div>
-              {importErrors.length > 0 && (
-                <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 max-h-32 overflow-y-auto">
-                  <p className="font-medium">Erreurs :</p>
-                  <ul className="list-disc list-inside">
-                    {importErrors.slice(0, 5).map((err, i) => (
-                      <li key={i}>Ligne {err.ligne}: {err.erreurs.join(', ')}</li>
-                    ))}
-                    {importErrors.length > 5 && <li>... et {importErrors.length - 5} autres erreurs</li>}
-                  </ul>
-                </div>
-              )}
-              <div className="flex justify-end gap-2">
-                <button onClick={cancelImport} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-100">
-                  Annuler
-                </button>
-                <button 
-                  onClick={applyImport} 
-                  disabled={importErrors.length > 0}
-                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
-                >
-                  <FiCheck className="mr-1" size={14} /> Appliquer l'import
-                </button>
-              </div>
-            </div>
-          )}
 
           {loading ? (
             <div className="flex justify-center py-8">
@@ -610,7 +376,7 @@ const PreparationInventaire = ({ onComplete }) => {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="text-left py-2.5 px-3 font-medium text-gray-600">N° Série Matériel</th>
+                      <th className="text-left py-2.5 px-3 font-medium text-gray-600">N° Série</th>
                       <th className="text-left py-2.5 px-3 font-medium text-gray-600">Nature</th>
                       <th className="text-left py-2.5 px-3 font-medium text-gray-600">Désignation</th>
                       <th className="text-left py-2.5 px-3 font-medium text-gray-600">
@@ -620,50 +386,53 @@ const PreparationInventaire = ({ onComplete }) => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {materiels.map(materiel => {
-                      const isItemModified = isModified(materiel.id);
-                      const hasValue = inventaires[materiel.id]?.trim() !== '';
+                      const oldValue = materiel.numeroInventaire?.trim() || '';
+                      const newValue = inventaires[materiel.id]?.trim() || '';
+                      const isModified = newValue && newValue !== oldValue;
+                      const hasValue = newValue !== '';
                       
                       return (
-                        <tr key={materiel.id} className={`hover:bg-gray-50 ${isItemModified ? 'bg-yellow-50' : ''}`}>
+                        <tr key={materiel.id} className={`hover:bg-gray-50 ${isModified ? 'bg-yellow-50' : ''}`}>
                           <td className="py-2.5 px-3">
                             <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
                               {materiel.numeroSerie}
                             </span>
-                           </td>
+                          </td>
                           <td className="py-2.5 px-3 text-gray-700">
                             {materiel.prix?.nature || materiel.type?.designation || '-'}
-                           </td>
+                          </td>
                           <td className="py-2.5 px-3 text-gray-700">
                             {materiel.prix?.designation || materiel.marque || '-'}
-                           </td>
+                          </td>
                           <td className="py-2.5 px-3">
                             <input
                               type="text"
                               value={inventaires[materiel.id] ?? materiel.numeroInventaire ?? ''}
                               onChange={(e) => handleInventaireChange(materiel.id, e.target.value)}
-                              placeholder="Saisir N° d'Inventaire"
+                              placeholder="Saisir N° Inventaire"
                               className={`w-full px-3 py-1.5 border rounded text-sm font-mono focus:outline-none focus:ring-2 transition-colors ${
-                                isItemModified 
+                                isModified 
                                   ? 'border-yellow-400 bg-yellow-50 focus:ring-yellow-500' 
                                   : hasValue
                                     ? 'border-green-300 bg-green-50 focus:ring-green-500'
                                     : 'border-gray-300 focus:ring-indigo-500'
                               }`}
                             />
+                            {/* Indicateurs visuels */}
                             <div className="flex items-center gap-1 mt-1">
-                              {isItemModified && (
+                              {isModified && (
                                 <span className="text-xs text-yellow-700 flex items-center">
                                   <FiAlertCircle className="mr-0.5" size={12} /> Modifié
                                 </span>
                               )}
-                              {!isItemModified && hasValue && (
+                              {!isModified && hasValue && (
                                 <span className="text-xs text-green-700 flex items-center">
                                   <FiCheck className="mr-0.5" size={12} /> Attribué
                                 </span>
                               )}
                             </div>
-                           </td>
-                         </tr>
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>
@@ -708,4 +477,4 @@ const PreparationInventaire = ({ onComplete }) => {
   );
 };
 
-export default PreparationInventaire;
+export default PreparationInventaireSimple;

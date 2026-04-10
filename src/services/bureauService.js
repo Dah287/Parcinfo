@@ -1,28 +1,26 @@
-// services/bureauService.js
-import axios from 'axios';
-
-const API_BASE_URL = 'http://192.168.1.80:8080/api/bureaux';
+import api from './api';
+const API_BASE_URL = '/bureaux';
 
 export const getAllBureaux = () => {
-  return axios.get(API_BASE_URL);
+  return api.get(API_BASE_URL);
 };
 
 export const getBureauById = (id) => {
-  return axios.get(`${API_BASE_URL}/${id}`);
+  return api.get(`${API_BASE_URL}/${id}`);
 };
 
 export const getBureauByCode = (code) => {
-  return axios.get(`${API_BASE_URL}/code/${code}`);
+  return api.get(`${API_BASE_URL}/code/${code}`);
 };
 
 export const createBureau = (data) => {
-  return axios.post(API_BASE_URL, data);
+  return api.post(API_BASE_URL, data);
 };
 
 export const updateBureau = (id, data) => {
-  return axios.put(`${API_BASE_URL}/${id}`, data);
+  return api.put(`${API_BASE_URL}/${id}`, data);
 };
 
 export const deleteBureau = (id) => {
-  return axios.delete(`${API_BASE_URL}/${id}`);
+  return api.delete(`${API_BASE_URL}/${id}`);
 };

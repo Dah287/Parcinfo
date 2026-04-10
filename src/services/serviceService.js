@@ -1,32 +1,31 @@
 // services/serviceService.js
-import axios from 'axios';
-
-const API_BASE_URL = 'http://192.168.1.80:8080/api/services';
+import api from './api';
+const API_BASE_URL = '/services';
 
 export const getAllServices = () => {
-  return axios.get(API_BASE_URL);
+  return api.get(API_BASE_URL);
 };
 
 export const getServiceById = (id) => {
-  return axios.get(`${API_BASE_URL}/${id}`);
+  return api.get(`${API_BASE_URL}/${id}`);
 };
 
 export const getServiceByCode = (code) => {
-  return axios.get(`${API_BASE_URL}/code/${code}`);
+  return api.get(`${API_BASE_URL}/code/${code}`);
 };
 
 export const getServicesByDepartment = (departmentId) => {
-  return axios.get(`${API_BASE_URL}/department/${departmentId}`);
+  return api.get(`${API_BASE_URL}/department/${departmentId}`);
 };
 
 export const createService = (data) => {
-  return axios.post(API_BASE_URL, data);
+  return api.post(API_BASE_URL, data);
 };
 
 export const updateService = (id, data) => {
-  return axios.put(`${API_BASE_URL}/${id}`, data);
+  return api.put(`${API_BASE_URL}/${id}`, data);
 };
 
 export const deleteService = (id) => {
-  return axios.delete(`${API_BASE_URL}/${id}`);
+  return api.delete(`${API_BASE_URL}/${id}`);
 };

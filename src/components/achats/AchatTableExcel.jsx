@@ -493,9 +493,7 @@ const AchatTableExcel = () => {
         <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Gestion des Achats</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Créez des achats, puis ajoutez les prix via les composants dédiés
-            </p>
+
           </div>
 
           <div className="flex gap-2">

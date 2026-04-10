@@ -77,68 +77,66 @@ const Login = ({ onLoginSuccess, onSwitchToRegister }) => {
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (isLocked) {
-      setError(`Trop de tentatives. Veuillez réessayer dans ${lockTimer} secondes.`);
-      return;
-    }
-    
-    if (!validateForm()) return;
+  // Login.jsx - Version avec débogage
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (isLocked) {
+    setError(`Trop de tentatives. Veuillez réessayer dans ${lockTimer} secondes.`);
+    return;
+  }
+  
+  if (!validateForm()) return;
 
-    setLoading(true);
-    setError('');
-    setSuccessMessage('');
+  setLoading(true);
+  setError('');
+  setSuccessMessage('');
 
-    try {
-      // Appel API réel
-      const response = await login(
-        formData.matricule, 
-        formData.password, 
-        formData.rememberMe
-      );
+  try {
+    console.log("Appel API login avec:", formData.matricule);
+    
+    // Appel API réel
+    const response = await login(
+      formData.matricule, 
+      formData.password, 
+      formData.rememberMe
+    );
+    
+    console.log("Réponse API complète:", response);
+    console.log("Données de réponse:", response.data);
+    
+    if (response.data && response.data.token) {
+      console.log("Token reçu, traitement des données...");
       
-      if (response.data && response.data.token) {
-        // Extraire les données utilisateur
-        const userData = {
-          id: response.data.id,
-          matricule: response.data.matricule,
-          nom: response.data.nom,
-          prenom: response.data.prenom,
-          email: response.data.email,
-          role: response.data.role,
-          permissions: response.data.permissions || [],
-          token: response.data.token
-        };
-        
-        // Stocker les informations utilisateur
-        setUserSession(userData, formData.rememberMe);
-        
-        setSuccessMessage('Connexion réussie ! Redirection en cours...');
-        setLoginAttempts(0);
-        
-        setTimeout(() => {
-          if (onLoginSuccess) {
-            onLoginSuccess(userData);
-          }
-        }, 1000);
-      } else {
-        const newAttempts = loginAttempts + 1;
-        setLoginAttempts(newAttempts);
-        
-        if (newAttempts >= 3) {
-          setIsLocked(true);
-          setLockTimer(30);
-          setError('Trop de tentatives échouées. Veuillez réessayer dans 30 secondes.');
-        } else {
-          setError(`Matricule ou mot de passe incorrect. Tentative ${newAttempts}/3`);
-        }
-        setLoading(false);
-      }
-    } catch (err) {
-      console.error('Erreur de connexion:', err);
+      // Extraire les données utilisateur
+      const userData = {
+        id: response.data.id,
+        matricule: response.data.matricule,
+        nom: response.data.nom,
+        prenom: response.data.prenom,
+        email: response.data.email,
+        role: response.data.role,
+        permissions: response.data.permissions || [],
+        token: response.data.token
+      };
       
+      console.log("UserData à stocker:", userData);
+      
+      // Stocker les informations utilisateur
+      setUserSession(userData, formData.rememberMe);
+      
+      setSuccessMessage('Connexion réussie ! Redirection en cours...');
+      setLoginAttempts(0);
+      
+      // Attendre un peu puis rediriger
+setTimeout(() => {
+  console.log("Appel de onLoginSuccess avec:", userData);
+  if (onLoginSuccess) {
+    onLoginSuccess(userData); // Le rôle est déjà dans userData
+  }
+}, 1500);
+    } else {
+      console.error("Pas de token dans la réponse:", response.data);
       const newAttempts = loginAttempts + 1;
       setLoginAttempts(newAttempts);
       
@@ -147,12 +145,29 @@ const Login = ({ onLoginSuccess, onSwitchToRegister }) => {
         setLockTimer(30);
         setError('Trop de tentatives échouées. Veuillez réessayer dans 30 secondes.');
       } else {
-        const errorMessage = err.response?.data?.message || 'Matricule ou mot de passe incorrect';
-        setError(`${errorMessage}. Tentative ${newAttempts}/3`);
+        setError(`Matricule ou mot de passe incorrect. Tentative ${newAttempts}/3`);
       }
       setLoading(false);
     }
-  };
+  } catch (err) {
+    console.error('Erreur détaillée de connexion:', err);
+    console.error('Response error:', err.response);
+    console.error('Message error:', err.message);
+    
+    const newAttempts = loginAttempts + 1;
+    setLoginAttempts(newAttempts);
+    
+    if (newAttempts >= 3) {
+      setIsLocked(true);
+      setLockTimer(30);
+      setError('Trop de tentatives échouées. Veuillez réessayer dans 30 secondes.');
+    } else {
+      const errorMessage = err.response?.data?.message || err.message || 'Matricule ou mot de passe incorrect';
+      setError(`${errorMessage}. Tentative ${newAttempts}/3`);
+    }
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
@@ -304,7 +319,7 @@ const Login = ({ onLoginSuccess, onSwitchToRegister }) => {
               )}
             </button>
 
-            <div className="text-center pt-2">
+            {/* <div className="text-center pt-2">
               <button
                 type="button"
                 onClick={onSwitchToRegister}
@@ -313,7 +328,7 @@ const Login = ({ onLoginSuccess, onSwitchToRegister }) => {
                 <FiUserPlus size={16} />
                 Pas encore de compte ? S'inscrire
               </button>
-            </div>
+            </div> */}
           </form>
         </div>
 

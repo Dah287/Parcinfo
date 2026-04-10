@@ -453,20 +453,21 @@ const handleDownloadPDF = async () => {
           </div>
         </div>
 
-        <table class="form-header">
-          <thead>
-            <tr>
-              <th colspan="7" class="title">PRISE EN CHARGE</th>
-              <th>N°</th>
-              <th>${numero}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colspan="9" class="organization">ORMVAD - S.M.G./B.P.I.</td>
-            </tr>
-          </tbody>
-        </table>
+<table class="form-header">
+  <thead>
+    <tr>
+      <th style="text-align: left; font-size: 12px; font-weight: normal;">
+        ORMVAD - S.M.G./B.P.I.
+      </th>
+      <th colspan="7" class="title">PRISE EN CHARGE</th>
+      <th>N°</th>
+      <th>${numero}</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr></tr>
+  </tbody>
+</table>
 
         <table class="form-section">
           <tbody>
@@ -492,7 +493,7 @@ const handleDownloadPDF = async () => {
         <table class="form-section">
           <tbody>
             <tr>
-              <td rowspan="2" class="section-label detenteur-cell" style="width: 25%;">
+              <td rowspan="2" class="section-label detenteur-cell" style="width: 40%;">
                 <div>
                   <strong>LE DETENTEUR</strong>
                 </div>
@@ -501,16 +502,16 @@ const handleDownloadPDF = async () => {
                   Avoir pris en charge les articles ci-dessous
                 </div>
               </td>
-              <td class="section-value">
+              <td class="section-value" style="width: 15%;">
                 Mle : ${beneficiaire?.matricule || '7950'}
               </td>
-              <td class="section-value" colspan="2">
+              <td class="section-value" colspan="2" style="width: 15%;">
                 DEP : ${generateAcronym(beneficiaire?.department?.name || beneficiaire?.departmentNom || beneficiaire?.departement || '')}
               </td>
-              <td class="section-value" colspan="2">
+              <td class="section-value" colspan="2" style="width: 15%;">
                 SCE : ${generateAcronym(beneficiaire?.service?.name || beneficiaire?.serviceNom || '')}
               </td>
-              <td class="section-value">
+              <td class="section-value" style="width: 15%;">
                 BUR : ${generateAcronym(beneficiaire?.bureau?.name || beneficiaire?.bureauNom || '')}
               </td>
             </tr>
@@ -1134,6 +1135,9 @@ const generateAcronym = (text) => {
       <table className="form-header">
         <thead>
           <tr>
+<th style={{ textAlign: 'left', fontSize: '12px', fontWeight: 'normal' }}>
+  ORMVAD - S.M.G./B.P.I.
+</th>
             <th colSpan="7" className="title">PRISE EN CHARGE</th>
             <th>N°</th>
             <th>{numero}</th>
@@ -1141,7 +1145,7 @@ const generateAcronym = (text) => {
         </thead>
         <tbody>
           <tr>
-            <td colSpan="9" className="organization">ORMVAD - S.M.G./B.P.I.</td>
+           
           </tr>
         </tbody>
       </table>
@@ -1170,7 +1174,7 @@ const generateAcronym = (text) => {
       <table className="form-section">
         <tbody>
           <tr>
-            <td rowSpan="2" className="section-label detenteur-cell" style={{ width: '25%' }}>
+            <td rowSpan="2" className="section-label detenteur-cell" style={{ width: '40%' }}>
               <div>
                 <strong>LE DETENTEUR</strong>
               </div>
@@ -1179,16 +1183,16 @@ const generateAcronym = (text) => {
                 Avoir pris en charge les articles ci-dessous
               </div>
             </td>
-            <td className="section-value">
+            <td className="section-value" style={{ width: '15%' }}>
               Mle : {beneficiaire?.matricule || '7950'}
             </td>
-            <td className="section-value" colSpan="2">
+            <td className="section-value" colSpan="2" style={{ width: '15%' }}>
               DEP : {generateAcronym(beneficiaire?.department?.name || beneficiaire?.departmentNom || beneficiaire?.departement || '')}
             </td>
-            <td className="section-value" colSpan="2">
+            <td className="section-value" colSpan="2" style={{ width: '15%' }}>
               SCE : {generateAcronym(beneficiaire?.service?.name || beneficiaire?.serviceNom || '')}
             </td>
-            <td className="section-value">
+            <td className="section-value" style={{ width: '15%' }}>
               BUR : {generateAcronym(beneficiaire?.bureau?.name || beneficiaire?.bureauNom || '')}
             </td>
           </tr>

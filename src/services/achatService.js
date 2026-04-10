@@ -1,43 +1,44 @@
-import axios from 'axios';
+// services/achatService.js
+import api from './api'; // ✅ Utilisez l'instance configurée
 
-const API_BASE_URL = 'http://192.168.1.80:8080/api/achats';
-const API_BASE_URL_2 = 'http://192.168.1.80:8080/api/prix/achats';
-const PRIX_API_BASE_URL = 'http://192.168.1.80:8080/api/prix'; // ✅ Nouvelle URL pour les prix
+const API_BASE_URL = '/achats';
+const API_BASE_URL_2 = '/prix/achats';
+const PRIX_API_BASE_URL = '/prix';
+
 export const getAllAchats = () => {
-  return axios.get(API_BASE_URL);
+  return api.get(API_BASE_URL);
 };
 
 export const getAchatById = (id) => {
-  return axios.get(`${API_BASE_URL}/${id}`);
+  return api.get(`${API_BASE_URL}/${id}`);
 };
 
 export const searchAchats = (keyword) => {
-  return axios.get(`${API_BASE_URL}/search`, { params: { keyword } });
+  return api.get(`${API_BASE_URL}/search`, { params: { keyword } });
 };
 
 export const createAchat = (achatData) => {
-  return axios.post(API_BASE_URL, achatData);
+  return api.post(API_BASE_URL, achatData);
 };
 
 export const updateAchat = (id, achatData) => {
-  return axios.put(`${API_BASE_URL}/${id}`, achatData);
+  return api.put(`${API_BASE_URL}/${id}`, achatData);
 };
 
 export const deleteAchat = (id) => {
-  return axios.delete(`${API_BASE_URL}/${id}`);
+  return api.delete(`${API_BASE_URL}/${id}`);
 };
 
 export const getPrixByAchat = (id) => {
-  return axios.get(`${API_BASE_URL}/${id}/prix`);
+  return api.get(`${API_BASE_URL}/${id}/prix`);
 };
 
 export const getStats = () => {
-  return axios.get(`${API_BASE_URL}/stats`);
+  return api.get(`${API_BASE_URL}/stats`);
 };
 
-// ✅ AJOUTEZ CES DEUX FONCTIONS
 export const importerPrixExcel = (achatId, formData) => {
-  return axios.post(`${API_BASE_URL}/${achatId}/import-prix`, formData, {
+  return api.post(`${API_BASE_URL}/${achatId}/import-prix`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -45,10 +46,9 @@ export const importerPrixExcel = (achatId, formData) => {
 };
 
 export const ajouterPrixManuellement = (achatId, prixList) => {
-  return axios.post(`${API_BASE_URL_2}/${achatId}/prix`, prixList);
+  return api.post(`${API_BASE_URL_2}/${achatId}/prix`, prixList);
 };
 
-// ✅ NOUVELLE FONCTION : Nombre de prix par achat
 export const getNombrePrixByAchat = (achatId) => {
-  return axios.get(`${PRIX_API_BASE_URL}/achat/${achatId}/count`);
+  return api.get(`${PRIX_API_BASE_URL}/achat/${achatId}/count`);
 };

@@ -22,7 +22,8 @@ import {
   FiMousePointer,
   FiWifi,
   FiCamera,
-  FiPhone
+  FiPhone,
+  FiAlertTriangle
 } from 'react-icons/fi';
 import { 
   getAllAchats, 
@@ -44,6 +45,7 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
   const [showAchatDropdown, setShowAchatDropdown] = useState(false);
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [duplicateErrors, setDuplicateErrors] = useState([]);
   
   // Ref pour le conteneur principal
   const containerRef = useRef(null);
@@ -61,16 +63,12 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
     'Disque SSD',
     'Clavier',
     'Souris',
-
     'Routeur',
     'Switch',
-
     'Camera IP',
     'Caméra de surveillance',
-
     'Microphone',
     'Webcam',
-
     'Autre'
   ];
 
@@ -122,6 +120,33 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
            achat.fournisseur?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  // Fonction pour vérifier les doublons dans les données parsées
+  const checkForDuplicates = (parsedData) => {
+    const seen = {};
+    const duplicates = [];
+    const duplicateRows = [];
+
+    parsedData.forEach((prix, index) => {
+      const numeroPrix = prix.numeroPrix;
+      if (numeroPrix && numeroPrix.trim() !== '') {
+        if (seen[numeroPrix]) {
+          // C'est un doublon
+          duplicates.push({
+            numeroPrix: numeroPrix,
+            ligne1: seen[numeroPrix],
+            ligne2: index + 1,
+            designation: prix.designation
+          });
+          duplicateRows.push(index);
+        } else {
+          seen[numeroPrix] = index + 1;
+        }
+      }
+    });
+
+    return { duplicates, duplicateRows };
+  };
+
   const handleFileSelect = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
@@ -135,6 +160,7 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
     setError(null);
     setImportResult(null);
     setSuccessMessage(null);
+    setDuplicateErrors([]);
     
     parseExcelFile(selectedFile);
   };
@@ -157,7 +183,25 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
         });
 
         const parsedData = parseExcelData(jsonData);
-        setPreviewData(parsedData);
+        
+        // Vérifier les doublons
+        const { duplicates, duplicateRows } = checkForDuplicates(parsedData);
+        
+        if (duplicates.length > 0) {
+          setDuplicateErrors(duplicates);
+          setError(`❌ ${duplicates.length} doublon(s) détecté(s) dans le fichier Excel !`);
+        } else {
+          setDuplicateErrors([]);
+          setError(null);
+        }
+        
+        // Marquer les lignes en double dans l'aperçu
+        const markedData = parsedData.map((prix, index) => ({
+          ...prix,
+          isDuplicate: duplicateRows.includes(index)
+        }));
+        
+        setPreviewData(markedData);
         setPreviewMode(true);
         
       } catch (error) {
@@ -221,8 +265,6 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
       if (prix.numeroPrix || prix.designation || prix.quantite > 0 || prix.prixUnitaireHT > 0) {
         parsedRows.push(prix);
       }
-
-      if (parsedRows.length >= 20) break;
     }
 
     return parsedRows;
@@ -242,6 +284,12 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
 
     if (!file) {
       setError('Veuillez sélectionner un fichier Excel');
+      return;
+    }
+
+    // Vérifier s'il y a des doublons avant d'importer
+    if (duplicateErrors.length > 0) {
+      setError('❌ Veuillez corriger les doublons dans le fichier Excel avant d\'importer !');
       return;
     }
 
@@ -266,14 +314,12 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
         
         setSuccessMessage(message);
         
-        // Notification visuelle
         alert(message);
 
         if (onSuccess && typeof onSuccess === 'function') {
           onSuccess(result.lignesImportees, result.lignesMiseAJour, selectedAchat.id);
         }
 
-        // Fermer le modal après 2 secondes si tout est OK
         setTimeout(() => {
           if (result.lignesEnErreur === 0) {
             handleClose();
@@ -290,49 +336,37 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
     }
   };
 
- const downloadTemplate = async () => {
-  try {
-    // Définir le nom du fichier téléchargé (avec ou sans référence d'achat)
-    const fileName = selectedAchat 
-      ? `modele_prix_${selectedAchat.reference.replace(/[^a-z0-9]/gi, '_')}.xlsx`
-      : 'modele_importation_prix_complet.xlsx';
-    
-    // URL du template pré-existant (dans le dossier public)
-    const templateUrl = '/modele_prix.xlsx';
-    
-    // Récupérer le fichier via fetch
-    const response = await fetch(templateUrl);
-    
-    if (!response.ok) {
-      throw new Error('Impossible de télécharger le template. Vérifiez que le fichier existe dans le dossier public.');
+  const downloadTemplate = async () => {
+    try {
+      const fileName = selectedAchat 
+        ? `modele_prix_${selectedAchat.reference.replace(/[^a-z0-9]/gi, '_')}.xlsx`
+        : 'modele_importation_prix_complet.xlsx';
+      
+      const templateUrl = '/modele_prix.xlsx';
+      
+      const response = await fetch(templateUrl);
+      
+      if (!response.ok) {
+        throw new Error('Impossible de télécharger le template.');
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      
+    } catch (error) {
+      console.error('Erreur:', error);
+      window.open('/modele_prix.xlsx', '_blank');
     }
-    
-    // Convertir la réponse en Blob
-    const blob = await response.blob();
-    
-    // Créer un objet URL temporaire
-    const downloadUrl = window.URL.createObjectURL(blob);
-    
-    // Créer et déclencher le lien de téléchargement
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = fileName; // Nom personnalisé du fichier téléchargé
-    link.style.display = 'none';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Nettoyer l'objet URL
-    window.URL.revokeObjectURL(downloadUrl);
-    
-  } catch (error) {
-    console.error('❌ Erreur lors du téléchargement du template :', error);
-    
-    // Fallback : ouverture directe dans un nouvel onglet
-    window.open('/modele_prix.xlsx', '_blank');
-  }
-};
+  };
 
   const calculateTotalPreview = () => {
     return previewData.reduce((total, prix) => {
@@ -407,6 +441,42 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
               La page va se fermer automatiquement...
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Message d'erreur avec doublons */}
+      {error && error.includes('doublon') && (
+        <div className="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-800 rounded-lg">
+          <div className="flex items-start">
+            <FiAlertTriangle className="text-red-600 text-2xl mr-3 flex-shrink-0" />
+            <div>
+              <h3 className="font-bold text-lg">Erreur : Doublons détectés</h3>
+              <p className="whitespace-pre-line">{error}</p>
+              {duplicateErrors.length > 0 && (
+                <div className="mt-3">
+                  <p className="font-medium mb-2">Détails des doublons :</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {duplicateErrors.map((dup, idx) => (
+                      <li key={idx} className="text-sm">
+                        Numéro <span className="font-bold">{dup.numeroPrix}</span> apparaît aux lignes {dup.ligne1} et {dup.ligne2}
+                        {dup.designation && ` (${dup.designation})`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-sm mt-2 text-red-700">
+                Veuillez corriger les doublons dans votre fichier Excel avant de réimporter.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message d'erreur standard */}
+      {error && !error.includes('doublon') && !successMessage && (
+        <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">
+          {error}
         </div>
       )}
 
@@ -564,7 +634,11 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
               </div>
             </div>
             <button
-              onClick={() => setFile(null)}
+              onClick={() => {
+                setFile(null);
+                setPreviewData([]);
+                setDuplicateErrors([]);
+              }}
               className="text-red-500 hover:text-red-700"
             >
               <FiX />
@@ -668,7 +742,7 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
         </div>
       </div>
 
-      {/* Bouton d'aperçu */}
+      {/* Bouton d'aperçu avec mise en évidence des doublons */}
       {file && previewData.length > 0 && (
         <div className="mb-6">
           <button
@@ -681,8 +755,14 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
 
           {previewMode && (
             <div className="mt-3 bg-gray-50 p-4 rounded-lg overflow-x-auto">
-              <h4 className="font-medium text-gray-700 mb-3">
-                Aperçu des données ({previewData.length} lignes)
+              <h4 className="font-medium text-gray-700 mb-3 flex items-center justify-between">
+                <span>Aperçu des données ({previewData.length} lignes)</span>
+                {duplicateErrors.length > 0 && (
+                  <span className="text-red-600 text-sm flex items-center">
+                    <FiAlertTriangle className="mr-1" />
+                    {duplicateErrors.length} doublon(s) détecté(s)
+                  </span>
+                )}
               </h4>
               <div className="overflow-x-auto">
                 <table className="min-w-full bg-white border border-gray-200 rounded text-xs">
@@ -699,8 +779,16 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
                   </thead>
                   <tbody>
                     {previewData.map((prix, index) => (
-                      <tr key={index} className="border-t">
-                        <td className="px-2 py-1">{prix.numeroPrix}</td>
+                      <tr 
+                        key={index} 
+                        className={`border-t ${prix.isDuplicate ? 'bg-red-50 border-l-4 border-l-red-500' : ''}`}
+                      >
+                        <td className={`px-2 py-1 font-medium ${prix.isDuplicate ? 'text-red-600' : ''}`}>
+                          {prix.numeroPrix}
+                          {prix.isDuplicate && (
+                            <span className="ml-1 text-red-500" title="Numéro en double">⚠️</span>
+                          )}
+                        </td>
                         <td className="px-2 py-1 max-w-xs truncate">{prix.designation}</td>
                         <td className="px-2 py-1">
                           <div className="flex items-center">
@@ -769,13 +857,6 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
         </div>
       )}
 
-      {/* Message d'erreur */}
-      {error && !successMessage && (
-        <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">
-          {error}
-        </div>
-      )}
-
       {/* Actions */}
       <div className="flex justify-between items-center pt-6 border-t">
         <div>
@@ -784,6 +865,11 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
               <span className="text-orange-600">Étape 1 : Sélectionnez un achat</span>
             ) : !file ? (
               <span className="text-orange-600">Étape 2 : Sélectionnez un fichier Excel</span>
+            ) : duplicateErrors.length > 0 ? (
+              <span className="text-red-600 flex items-center">
+                <FiAlertTriangle className="mr-1" />
+                ❌ {duplicateErrors.length} doublon(s) à corriger avant importation
+              </span>
             ) : (
               <span className="text-green-600">
                 Prêt à importer {previewData.length} prix avec leurs caractéristiques
@@ -803,8 +889,12 @@ const AddPrixExcel = ({ onClose, onSuccess }) => {
           
           <button
             onClick={handleImport}
-            disabled={!selectedAchat || !file || importing || successMessage}
-            className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!selectedAchat || !file || importing || successMessage || duplicateErrors.length > 0}
+            className={`px-6 py-2 rounded-lg transition-all shadow-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed ${
+              duplicateErrors.length > 0
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white'
+            }`}
           >
             {importing ? (
               <>

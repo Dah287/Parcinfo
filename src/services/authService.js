@@ -1,24 +1,17 @@
 // services/authService.js
-import api from '../services/config/axiosConfig';
+import api from './api'; // ✅ Correction du chemin
 
-const API_BASE_URL = '/auth'; // Utilise le baseURL de api déjà configuré
+const API_BASE_URL = '/auth';
 
-// 🔹 Authentification - Login
 export const login = (matricule, password, rememberMe) => {
   console.log('Tentative de login avec:', matricule);
-  return api.post(`${API_BASE_URL}/login`, {
-    matricule,
-    password,
-    rememberMe
-  });
+  return api.post(`${API_BASE_URL}/login`, { matricule, password, rememberMe });
 };
 
-// 🔹 Inscription - Register
 export const register = (userData) => {
   return api.post(`${API_BASE_URL}/register`, userData);
 };
 
-// 🔹 Déconnexion - Logout
 export const logout = () => {
   localStorage.removeItem('user');
   localStorage.removeItem('token');
@@ -26,24 +19,20 @@ export const logout = () => {
   sessionStorage.removeItem('token');
 };
 
-// 🔹 Vérifier si l'utilisateur est authentifié
 export const isAuthenticated = () => {
   const token = localStorage.getItem('token') || sessionStorage.getItem('token');
   return !!token;
 };
 
-// 🔹 Récupérer l'utilisateur courant
 export const getCurrentUser = () => {
   const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
   return userStr ? JSON.parse(userStr) : null;
 };
 
-// 🔹 Récupérer le token JWT
 export const getToken = () => {
   return localStorage.getItem('token') || sessionStorage.getItem('token');
 };
 
-// 🔹 Stocker les informations utilisateur après connexion
 export const setUserSession = (userData, rememberMe) => {
   if (rememberMe) {
     localStorage.setItem('user', JSON.stringify(userData));
@@ -52,19 +41,7 @@ export const setUserSession = (userData, rememberMe) => {
     sessionStorage.setItem('user', JSON.stringify(userData));
     sessionStorage.setItem('token', userData.token);
   }
-};
-
-// 🔹 Mettre à jour le profil utilisateur
-export const updateUserProfile = (userId, data) => {
-  return api.put(`${API_BASE_URL}/users/${userId}`, data);
-};
-
-// 🔹 Changer le mot de passe
-export const changePassword = (userId, oldPassword, newPassword) => {
-  return api.put(`${API_BASE_URL}/users/${userId}/password`, {
-    oldPassword,
-    newPassword
-  });
+  console.log('✅ Session utilisateur enregistrée');
 };
 
 // 🔹 Récupérer tous les utilisateurs (Admin seulement)
@@ -77,6 +54,26 @@ export const getUserById = (id) => {
   return api.get(`${API_BASE_URL}/users/${id}`);
 };
 
+// 🔹 Créer un utilisateur
+export const createUser = (userData) => {
+  return api.post(`${API_BASE_URL}/users`, userData);
+};
+
+// 🔹 Mettre à jour un utilisateur
+// 🔹 Mettre à jour un utilisateur (sans mot de passe obligatoire)
+export const updateUser = (id, userData) => {
+  // Ne pas envoyer les champs vides
+  const dataToSend = { ...userData };
+  
+  // Si le mot de passe est vide, le supprimer de l'envoi
+  if (!dataToSend.password || dataToSend.password.trim() === '') {
+    delete dataToSend.password;
+    delete dataToSend.confirmPassword;
+  }
+  
+  return api.put(`${API_BASE_URL}/users/${id}`, dataToSend);
+};
+
 // 🔹 Supprimer un utilisateur (Admin seulement)
 export const deleteUser = (id) => {
   return api.delete(`${API_BASE_URL}/users/${id}`);
@@ -87,17 +84,12 @@ export const toggleUserStatus = (id, actif) => {
   return api.put(`${API_BASE_URL}/users/${id}/status`, { actif });
 };
 
-// 🔹 Vérifier si un matricule existe déjà
-export const checkMatriculeExists = (matricule) => {
-  return api.get(`${API_BASE_URL}/exists/matricule/${matricule}`);
+// 🔹 Réinitialiser le mot de passe d'un utilisateur
+export const resetUserPassword = (id, newPassword) => {
+  return api.put(`${API_BASE_URL}/users/${id}/reset-password`, { password: newPassword });
 };
 
-// 🔹 Vérifier si un email existe déjà
-export const checkEmailExists = (email) => {
-  return api.get(`${API_BASE_URL}/exists/email/${email}`);
-};
-
-// 🔹 Rafraîchir le token
-export const refreshToken = () => {
-  return api.post(`${API_BASE_URL}/refresh-token`);
+// 🔹 Changer le rôle d'un utilisateur
+export const updateUserRole = (id, role) => {
+  return api.put(`${API_BASE_URL}/users/${id}/role`, { role });
 };

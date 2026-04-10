@@ -1,28 +1,26 @@
-import axios from 'axios';
-
-const API_BASE_URL = 'http://192.168.1.80:8080/api';
+// services/combinedService.js (ou le nom de votre fichier)
+import api from './api'; // ✅ Import de l'instance configurée
 
 // ===============================
 // 🔹 MATERIELS
 // ===============================
 
 export const affecterConfigurationComplete = (dto) =>
-  axios.post(`${API_BASE_URL}/materiels/affectation-complete`, dto);
+  api.post('/materiels/affectation-complete', dto);  // ✅ Utilise api au lieu de axios
 
 export const getMaterielsDisponiblesParPrix = (achatId) =>
-  axios.get(`${API_BASE_URL}/materiels/achat/${achatId}/disponibles-par-prix`);
-
+  api.get(`/materiels/achat/${achatId}/disponibles-par-prix`);  // ✅ Utilise api
 
 // ===============================
 // 🔹 ACHATS
 // ===============================
 
 export const getAllAchats = () =>
-  axios.get(`${API_BASE_URL}/achats`);
+  api.get('/achats');  // ✅ Utilise api
 
 // ===============================
 // 🔹 BENEFICIAIRES
 // ===============================
 
 export const getAllBeneficiaires = () =>
-  axios.get(`${API_BASE_URL}/beneficiaires`);
+  api.get('/beneficiaires');  // ✅ Utilise api

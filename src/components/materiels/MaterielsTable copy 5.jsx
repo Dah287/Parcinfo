@@ -18,9 +18,7 @@ import {
   FiLayers,
   FiCalendar,
   FiUserPlus,
-  FiSliders,
-  FiFileText,
-  FiFile
+  FiSliders
 } from 'react-icons/fi';
 import {
   getAllMateriels,
@@ -34,9 +32,6 @@ import {
 import { getAllBeneficiaires } from '../../services/beneficiareService';
 import { getAllAchats } from '../../services/achatService';
 import { getAllFournisseurs } from '../../services/fournisseurService';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 const MaterielsTable = () => {
   const [materiels, setMateriels] = useState([]);
@@ -367,103 +362,6 @@ const MaterielsTable = () => {
     return Object.values(columnFilters).filter(value => value && value.trim() !== '').length;
   };
 
-  // Fonction d'export Excel
-  const exportToExcel = () => {
-    const exportData = filteredMateriels.map(materiel => ({
-      'Exercice': getExercice(materiel),
-      'Type': getType(materiel),
-      'Marque': getMarque(materiel),
-      'N° Inventaire': materiel.numeroInventaire || 'N/A',
-      'N° Série': materiel.numeroSerie || 'N/A',
-      'Système': getSystemeExploitation(materiel),
-      'N° Série Écran': materiel.numeroSerieEcran || 'N/A',
-      'Bénéficiaire': materiel.beneficiaire ? `${materiel.beneficiaire.nom} ${materiel.beneficiaire.prenom}` : 'Non attribué',
-      'État': materiel.etat || 'N/A',
-      'Fournisseur': getFournisseur(materiel),
-      'Date d\'acquisition': materiel.dateAcquisition ? new Date(materiel.dateAcquisition).toLocaleDateString('fr-FR') : 'N/A',
-      'Observations': materiel.observations || 'Aucune'
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Matériels');
-    
-    // Ajuster la largeur des colonnes
-    const colWidths = [
-      { wch: 10 }, // Exercice
-      { wch: 15 }, // Type
-      { wch: 15 }, // Marque
-      { wch: 15 }, // N° Inventaire
-      { wch: 15 }, // N° Série
-      { wch: 15 }, // Système
-      { wch: 15 }, // N° Série Écran
-      { wch: 20 }, // Bénéficiaire
-      { wch: 12 }, // État
-      { wch: 20 }, // Fournisseur
-      { wch: 15 }, // Date acquisition
-      { wch: 30 }  // Observations
-    ];
-    ws['!cols'] = colWidths;
-
-    const fileName = `materiels_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-  };
-
-  // Fonction d'export PDF
-// Fonction d'export PDF corrigée
-const exportToPDF = () => {
-  // Utiliser l'initialisation standard
-  const doc = new jsPDF('landscape');
-  
-  // Titre
-  doc.setFontSize(16);
-  doc.text('Liste des Matériels', 14, 15);
-  doc.setFontSize(10);
-  doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')}`, 14, 22);
-  doc.text(`Nombre total: ${filteredMateriels.length} matériel(s)`, 14, 29);
-  
-  // Préparer les données pour le tableau
-  const tableData = filteredMateriels.map(materiel => [
-    getExercice(materiel),
-    getType(materiel),
-    getMarque(materiel),
-    materiel.numeroInventaire || 'N/A',
-    materiel.numeroSerie || 'N/A',
-    getSystemeExploitation(materiel),
-    materiel.numeroSerieEcran || 'N/A',
-    materiel.beneficiaire ? `${materiel.beneficiaire.nom} ${materiel.beneficiaire.prenom}` : 'Non attribué',
-    materiel.etat || 'N/A'
-  ]);
-
-  // Utiliser autoTable correctement
-  autoTable(doc, {
-    head: [[
-      'Exercice', 'Type', 'Marque', 'N° Inventaire', 
-      'N° Série', 'Système', 'N° Série Écran', 'Bénéficiaire', 'État'
-    ]],
-    body: tableData,
-    startY: 35,
-    styles: {
-      fontSize: 8,
-      cellPadding: 2,
-      overflow: 'linebreak'
-    },
-    headStyles: {
-      fillColor: [79, 70, 229],
-      textColor: 255,
-      fontSize: 9,
-      fontStyle: 'bold'
-    },
-    alternateRowStyles: {
-      fillColor: [245, 245, 245]
-    },
-    margin: { top: 35, left: 14, right: 14 }
-  });
-
-  const fileName = `materiels_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(fileName);
-};
-
   const toggleRow = (id) => {
     setExpandedRow(expandedRow === id ? null : id);
   };
@@ -725,7 +623,7 @@ const exportToPDF = () => {
         }
       `}</style>
 
-      {/* En-tête avec onglet Tous et boutons d'export */}
+      {/* En-tête avec onglets et bouton d'affichage des filtres */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 space-y-4 md:space-y-0">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <FiPackage className="text-purple-600" />
@@ -743,41 +641,43 @@ const exportToPDF = () => {
             >
               Tous
             </button>
-          </div>
-          <div className="flex gap-2">
             <button
-              onClick={exportToPDF}
-              className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-red-600 text-white hover:bg-red-700"
-              title="Exporter en PDF avec les filtres appliqués"
-            >
-              <FiFileText size={18} />
-              PDF
-            </button>
-            <button
-              onClick={exportToExcel}
-              className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 bg-green-600 text-white hover:bg-green-700"
-              title="Exporter en Excel avec les filtres appliqués"
-            >
-              <FiFile size={18} />
-              Excel
-            </button>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center relative ${
-                showFilters || getActiveFiltersCount() > 0
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              onClick={() => setActiveTab('DISPONIBLE')}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === 'DISPONIBLE'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <FiSliders className="mr-2" />
-              Filtres avancés
-              {getActiveFiltersCount() > 0 && (
-                <span className="ml-2 bg-white text-purple-600 text-xs px-2 py-0.5 rounded-full">
-                  {getActiveFiltersCount()}
-                </span>
-              )}
+              Disponibles
+            </button>
+            <button
+              onClick={() => setActiveTab('ATTRIBUE')}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === 'ATTRIBUE'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Attribués
             </button>
           </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center relative ${
+              showFilters || getActiveFiltersCount() > 0
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <FiSliders className="mr-2" />
+            Filtres avancés
+            {getActiveFiltersCount() > 0 && (
+              <span className="ml-2 bg-white text-purple-600 text-xs px-2 py-0.5 rounded-full">
+                {getActiveFiltersCount()}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 

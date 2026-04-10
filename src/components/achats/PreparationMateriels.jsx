@@ -194,142 +194,204 @@ const handleAchatSelect = async (achat) => {
   };
 
   // === IMPORT EXCEL ===
-  const handleFileImport = (event, prix) => {
-    const file = event.target.files[0];
-    if (!file) return;
+const handleFileImport = (event, prix) => {
+  const file = event.target.files[0];
+  if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, { type: 'array' });
-        const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+  const reader = new FileReader();
+  reader.onload = async (e) => {  // 🔥 async pour pouvoir charger les matériels
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 
-        const errors = [], validData = [];
-        const serieMap = new Map(), ecranMap = new Map();
-        const hasEcran = prix.nature?.toLowerCase().includes('ordinateur') || prix.ecran;
-
-        json.forEach((row, idx) => {
-          const ligne = idx + 2;
-          const numeroSerie = row['N° Série Matériel']?.toString().trim();
-          const numeroSerieEcran = hasEcran ? row['N° Série Écran']?.toString().trim() : null;
-          
-          const lineErrors = [];
-          
-          // N° Série matériel obligatoire
-          if (!numeroSerie) {
-            lineErrors.push('N° Série Matériel requis');
-          }
-          
-          // Vérifier doublons série matériel
-          if (numeroSerie && serieMap.has(numeroSerie)) {
-            lineErrors.push(`Série matériel "${numeroSerie}" en double (ligne ${serieMap.get(numeroSerie)})`);
-          } else if (numeroSerie) {
-            serieMap.set(numeroSerie, ligne);
-          }
-          
-          // Vérifier doublons série écran (si applicable)
-          if (hasEcran && numeroSerieEcran) {
-            if (ecranMap.has(numeroSerieEcran)) {
-              lineErrors.push(`Série écran "${numeroSerieEcran}" en double (ligne ${ecranMap.get(numeroSerieEcran)})`);
-            } else {
-              ecranMap.set(numeroSerieEcran, ligne);
-            }
-          }
-
-          if (lineErrors.length > 0) {
-            errors.push({ ligne, erreurs: lineErrors, data: row });
-          } else {
-            validData.push({
-              numeroSerie: numeroSerie || null,
-              numeroSerieEcran: hasEcran ? (numeroSerieEcran || null) : null,
-              observations: row['Observations']?.toString().trim() || null,
-              prixId: prix.id
-            });
-          }
-        });
-
-        // Vérifier quantité
-        if (validData.length !== prix.quantite) {
-          errors.push({ ligne: 0, erreurs: [`Quantité attendue: ${prix.quantite}, trouvée: ${validData.length}`] });
-        }
-
-        setImportData(prev => ({ ...prev, [prix.id]: validData }));
-        setImportErrors(prev => ({ ...prev, [prix.id]: errors }));
-        setShowImportPreview(prev => ({ ...prev, [prix.id]: true }));
-
-        if (errors.length === 0) {
-          toast.success(`${validData.length} matériels prêts`);
-        } else {
-          toast.warning(`${errors.length} erreur(s)`);
-        }
-
-      } catch (err) {
-        toast.error('Erreur lecture fichier');
+      // 🔥 Étape 1 : Charger les matériels existants pour ce prix (si pas déjà chargés)
+      let materielsExistants = materielsData[prix.id] || [];
+      if (materielsExistants.length === 0) {
+        const response = await getMaterielsByPrix(prix.id);
+        materielsExistants = response.data || [];
+        setMaterielsData(prev => ({ ...prev, [prix.id]: materielsExistants }));
       }
-    };
-    reader.readAsArrayBuffer(file);
-    event.target.value = null;
-  };
 
-  // === ENREGISTREMENT (manuel ou import) ===
-  const savePreparedMaterials = async (prix, mode = 'manual') => {
-    const materiels = materielsData[prix.id] || [];
-    let updates = [];
+      const errors = [], validData = [];
+      const serieMap = new Map(), ecranMap = new Map();
+      const hasEcran = prix.nature?.toLowerCase().includes('ordinateur') || prix.ecran;
 
-    if (mode === 'import') {
-      updates = importData[prix.id] || [];
-    } else {
-      // Mode manuel : collecter les modifications
-      updates = materiels
-        .map(m => {
-          const key = `${prix.id}_${m.id}`;
-          const edits = editingSerials[key] || {};
-          const hasChanges = edits.numeroSerie !== undefined || edits.numeroSerieEcran !== undefined;
+      // 🔥 Étape 2 : Parser et valider chaque ligne Excel
+      json.forEach((row, idx) => {
+        const ligne = idx + 2;
+        const numeroSerie = row['N° Série Matériel']?.toString()?.trim()?.toUpperCase() || '';
+        const numeroSerieEcran = hasEcran 
+          ? (row['N° Série Écran']?.toString()?.trim()?.toUpperCase() || '') 
+          : null;
+        
+        const lineErrors = [];
+        
+        if (!numeroSerie) {
+          lineErrors.push('N° Série Matériel requis');
+        }
+        if (numeroSerie && serieMap.has(numeroSerie)) {
+          lineErrors.push(`Série matériel "${numeroSerie}" en double (ligne ${serieMap.get(numeroSerie)})`);
+        } else if (numeroSerie) {
+          serieMap.set(numeroSerie, ligne);
+        }
+        if (hasEcran && numeroSerieEcran && ecranMap.has(numeroSerieEcran)) {
+          lineErrors.push(`Série écran "${numeroSerieEcran}" en double (ligne ${ecranMap.get(numeroSerieEcran)})`);
+        } else if (hasEcran && numeroSerieEcran) {
+          ecranMap.set(numeroSerieEcran, ligne);
+        }
+
+        if (lineErrors.length > 0) {
+          errors.push({ ligne, erreurs: lineErrors, data: row });
+        } else {
+          // 🔥 Étape 3 : TROUVER LE MATÉRIEL CORRESPONDANT
+          // Priorité 1 : Par index (même position dans le fichier Excel et en base)
+          // Priorité 2 : Par série déjà existante (mise à jour)
+          // Priorité 3 : Premier matériel sans série (affectation nouvelle)
           
-          if (!hasChanges) return null;
+          let materielCorrespondant = null;
           
-          return {
-            numeroSerie: edits.numeroSerie ?? m.numeroSerie ?? null,
-            numeroSerieEcran: edits.numeroSerieEcran ?? m.numeroSerieEcran ?? null,
-            observations: m.observations,
+          // 1. Par index
+          if (idx < materielsExistants.length) {
+            materielCorrespondant = materielsExistants[idx];
+          }
+          
+          // 2. Par série existante (si l'utilisateur met à jour une série déjà enregistrée)
+          if (!materielCorrespondant && numeroSerie) {
+            materielCorrespondant = materielsExistants.find(m => 
+              m.numeroSerie?.toUpperCase() === numeroSerie
+            );
+          }
+          
+          // 3. Premier matériel sans série (pour nouvelle affectation)
+          if (!materielCorrespondant) {
+            materielCorrespondant = materielsExistants.find(m => !m.numeroSerie);
+          }
+          
+          if (!materielCorrespondant) {
+            lineErrors.push('Aucun matériel disponible pour cette ligne');
+            errors.push({ ligne, erreurs: lineErrors, data: row });
+            return;
+          }
+          
+          // 🔥 Étape 4 : Construire l'objet avec materialId
+          validData.push({
+            materialId: materielCorrespondant.id,  // 🔥 OBLIGATOIRE
+            numeroSerie: numeroSerie || null,
+            numeroSerieEcran: hasEcran ? (numeroSerieEcran || null) : null,
+            observations: row['Observations']?.toString().trim() || null,
             prixId: prix.id
-          };
-        })
-        .filter(Boolean);
-    }
+          });
+        }
+      });
 
-    if (updates.length === 0) {
-      toast.info('Aucune modification à enregistrer');
+      // Validation quantité
+      if (validData.length + errors.length !== prix.quantite) {
+        errors.push({ 
+          ligne: 0, 
+          erreurs: [`Quantité attendue: ${prix.quantite}, lignes valides: ${json.length}`] 
+        });
+      }
+
+      // Mise à jour des états
+      setImportData(prev => ({ ...prev, [prix.id]: validData }));
+      setImportErrors(prev => ({ ...prev, [prix.id]: errors }));
+      setShowImportPreview(prev => ({ ...prev, [prix.id]: true }));
+
+      // Feedback utilisateur
+      if (errors.length === 0 && validData.length === prix.quantite) {
+        toast.success(`${validData.length} matériels validés ✅`);
+      } else if (errors.length > 0) {
+        toast.warning(`${errors.length} erreur(s) à corriger ⚠️`);
+      }
+
+    } catch (err) {
+      console.error('Erreur parsing Excel:', err);
+      toast.error('Erreur lecture fichier: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = null;
+};
+  // === ENREGISTREMENT (manuel ou import) ===
+// === ENREGISTREMENT (manuel ou import) - VERSION CORRIGÉE ===
+const savePreparedMaterials = async (prix, mode = 'manual') => {
+  const materiels = materielsData[prix.id] || [];
+  let updates = [];
+
+  if (mode === 'import') {
+    // Mode import : utiliser les données validées du fichier Excel
+    updates = importData[prix.id] || [];
+  } else {
+    // 🔧 MODE MANUEL CORRIGÉ : Envoyer TOUS les matériels avec leurs séries actuelles
+    updates = materiels.map(m => {
+      const key = `${prix.id}_${m.id}`;
+      const edits = editingSerials[key] || {};
+      
+      return {
+        // Priorité : valeur éditée > valeur existante > null
+        numeroSerie: edits.numeroSerie !== undefined 
+          ? edits.numeroSerie 
+          : (m.numeroSerie || null),
+        numeroSerieEcran: edits.numeroSerieEcran !== undefined 
+          ? edits.numeroSerieEcran 
+          : (m.numeroSerieEcran || null),
+        observations: m.observations || null,
+        prixId: prix.id,
+        materialId: m.id // 🔥 Important : identifier le matériel à mettre à jour
+      };
+    }).filter(item => item.numeroSerie); // 🔥 Filtrer uniquement ceux avec série
+    
+    // 🔥 Validation frontend avant envoi
+    const missing = updates.filter(u => !u.numeroSerie);
+    if (missing.length > 0) {
+      toast.error(`${missing.length} numéro(s) de série manquant(s)`);
       return;
     }
+  }
 
-    try {
-      setProcessing(true);
-      const response = await preparerMateriels(prix.id, updates);
-      
-      toast.success(`${response.data?.length || updates.length} matériel(s) mis à jour`);
-      
-      // Recharger + nettoyer
-      await loadMaterielsForPrix(prix.id);
-      setEditingSerials(prev => {
-        const cleaned = { ...prev };
-        Object.keys(cleaned).forEach(k => { if (k.startsWith(`${prix.id}_`)) delete cleaned[k]; });
-        return cleaned;
+  if (updates.length === 0) {
+    toast.info('Aucune modification à enregistrer');
+    return;
+  }
+
+  try {
+    setProcessing(true);
+    const response = await preparerMateriels(prix.id, updates);
+    
+    toast.success(`${response.data?.length || updates.length} matériel(s) mis à jour`);
+    
+    // Recharger les matériels + nettoyer l'état d'édition
+    await loadMaterielsForPrix(prix.id);
+    
+    // Nettoyer uniquement les éditions de ce prix
+    setEditingSerials(prev => {
+      const cleaned = { ...prev };
+      Object.keys(cleaned).forEach(k => { 
+        if (k.startsWith(`${prix.id}_`)) delete cleaned[k]; 
       });
-      if (mode === 'import') {
-        setImportData(prev => ({ ...prev, [prix.id]: [] }));
-        setImportErrors(prev => ({ ...prev, [prix.id]: [] }));
-        setShowImportPreview(prev => ({ ...prev, [prix.id]: false }));
-      }
-      onComplete?.();
-      
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Erreur enregistrement');
-    } finally {
-      setProcessing(false);
+      return cleaned;
+    });
+    
+    if (mode === 'import') {
+      setImportData(prev => ({ ...prev, [prix.id]: [] }));
+      setImportErrors(prev => ({ ...prev, [prix.id]: [] }));
+      setShowImportPreview(prev => ({ ...prev, [prix.id]: false }));
     }
-  };
+    
+    onComplete?.();
+    
+  } catch (error) {
+    // 🔥 Afficher les erreurs détaillées du backend
+    const errorMsg = error.response?.data?.message || error.message || 'Erreur enregistrement';
+    toast.error(errorMsg);
+    
+    // 🔥 Afficher les erreurs dans la console pour débogage
+    console.error('Erreur détaillée:', error.response?.data);
+  } finally {
+    setProcessing(false);
+  }
+};
 
   // === STATS & UTILS ===
   const getProgress = (prixId, quantite) => {
@@ -504,29 +566,82 @@ const handleAchatSelect = async (achat) => {
                         </div>
 
                         {/* Aperçu Import */}
-                        {importPreview && importDataPrix.length > 0 && (
-                          <div className="mb-4 p-4 bg-white border border-blue-200 rounded-lg">
-                            <div className="flex justify-between mb-3">
-                              <span className="font-medium">{importDataPrix.length} affectation(s)</span>
-                              <button onClick={() => cancelImport(prix.id)} className="text-gray-400"><FiX size={16}/></button>
-                            </div>
-                            {importErrorsPrix.length > 0 && (
-                              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                                <p className="font-medium">Erreurs :</p>
-                                <ul className="list-disc list-inside">
-                                  {importErrorsPrix.slice(0,3).map((err,i) => <li key={i}>Ligne {err.ligne}: {err.erreurs.join(', ')}</li>)}
-                                </ul>
-                              </div>
-                            )}
-                            <div className="flex justify-end gap-2">
-                              <button onClick={() => cancelImport(prix.id)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-100">Annuler</button>
-                              <button onClick={() => savePreparedMaterials(prix, 'import')} disabled={importErrorsPrix.length > 0 || processing}
-                                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center">
-                                <FiSave className="mr-1" size={14}/> Enregistrer
-                              </button>
-                            </div>
-                          </div>
-                        )}
+{/* Dans le rendu - Aperçu Import - VERSION CORRIGÉE */}
+{importPreview && (
+  <div className="mb-4 p-4 bg-white border border-blue-200 rounded-lg">
+    <div className="flex justify-between items-center mb-3">
+      <div>
+        <span className="font-medium">
+          {importDataPrix.length > 0 
+            ? `${importDataPrix.length} affectation(s)` 
+            : 'Aucune donnée valide'}
+        </span>
+        {importErrorsPrix.length > 0 && (
+          <span className="ml-2 text-sm text-red-600">
+            ({importErrorsPrix.length} erreur{importErrorsPrix.length > 1 ? 's' : ''})
+          </span>
+        )}
+      </div>
+      <button onClick={() => cancelImport(prix.id)} className="text-gray-400 hover:text-gray-600">
+        <FiX size={16}/>
+      </button>
+    </div>
+    
+    {/* 🔥 Afficher les erreurs de façon visible */}
+    {importErrorsPrix.length > 0 && (
+      <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700 max-h-40 overflow-y-auto">
+        <p className="font-medium mb-2 flex items-center">
+          <FiAlertCircle className="mr-1"/> Erreurs à corriger :
+        </p>
+        <ul className="list-disc list-inside space-y-1">
+          {importErrorsPrix.map((err, i) => (
+            <li key={i}>
+              {err.ligne > 0 ? `Ligne ${err.ligne}: ` : ''}
+              {err.erreurs.join('; ')}
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+    
+    {/* 🔥 Aperçu des données valides (même si erreurs) */}
+    {importDataPrix.length > 0 && (
+      <div className="mb-3">
+        <p className="text-xs text-gray-600 mb-1">Données valides :</p>
+        <div className="max-h-32 overflow-y-auto text-xs bg-gray-50 p-2 rounded border">
+          {importDataPrix.slice(0, 5).map((d, i) => (
+            <div key={i} className="py-1 border-b last:border-0 font-mono">
+              {d.numeroSerie} {d.numeroSerieEcran ? `| Écran: ${d.numeroSerieEcran}` : ''}
+            </div>
+          ))}
+          {importDataPrix.length > 5 && (
+            <div className="text-center text-gray-500 py-1">
+              ... et {importDataPrix.length - 5} autre(s)
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    
+    {/* Actions */}
+    <div className="flex justify-end gap-2">
+      <button 
+        onClick={() => cancelImport(prix.id)} 
+        className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-100"
+      >
+        Annuler
+      </button>
+      <button 
+        onClick={() => savePreparedMaterials(prix, 'import')} 
+        disabled={importErrorsPrix.length > 0 || processing || importDataPrix.length === 0}
+        className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
+        title={importErrorsPrix.length > 0 ? 'Corrigez les erreurs avant d\'enregistrer' : ''}
+      >
+        <FiSave className="mr-1" size={14}/> Enregistrer
+      </button>
+    </div>
+  </div>
+)}
 
                         {/* Liste Matériels */}
                         {materiels.length === 0 ? (
