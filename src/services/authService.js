@@ -1,5 +1,5 @@
 // services/authService.js
-import api from './api'; // ✅ Correction du chemin
+import api from './api';
 
 const API_BASE_URL = '/auth';
 
@@ -45,9 +45,12 @@ export const setUserSession = (userData, rememberMe) => {
 };
 
 // 🔹 Récupérer tous les utilisateurs (Admin seulement)
-export const getAllUsers = () => {
+export const getAllUtilisateurs = () => {
   return api.get(`${API_BASE_URL}/users`);
 };
+
+// 🔹 Alias pour compatibilité
+export const getAllUsers = getAllUtilisateurs;
 
 // 🔹 Récupérer un utilisateur par ID
 export const getUserById = (id) => {
@@ -59,7 +62,6 @@ export const createUser = (userData) => {
   return api.post(`${API_BASE_URL}/users`, userData);
 };
 
-// 🔹 Mettre à jour un utilisateur
 // 🔹 Mettre à jour un utilisateur (sans mot de passe obligatoire)
 export const updateUser = (id, userData) => {
   // Ne pas envoyer les champs vides
@@ -92,4 +94,38 @@ export const resetUserPassword = (id, newPassword) => {
 // 🔹 Changer le rôle d'un utilisateur
 export const updateUserRole = (id, role) => {
   return api.put(`${API_BASE_URL}/users/${id}/role`, { role });
+};
+
+// 🔹 Obtenir le rôle de l'utilisateur connecté
+export const getUserRole = () => {
+  const user = getCurrentUser();
+  return user?.role || null;
+};
+
+// 🔹 Vérifier si l'utilisateur a un rôle spécifique
+export const hasRole = (role) => {
+  const userRole = getUserRole();
+  return userRole === role;
+};
+
+// 🔹 Vérifier si l'utilisateur est ADMIN
+export const isAdmin = () => {
+  return hasRole('ADMIN');
+};
+
+// 🔹 Vérifier si l'utilisateur est USER
+export const isUser = () => {
+  return hasRole('USER');
+};
+
+// 🔹 Obtenir l'ID de l'utilisateur connecté
+export const getCurrentUserId = () => {
+  const user = getCurrentUser();
+  return user?.id || null;
+};
+
+// 🔹 Obtenir le matricule de l'utilisateur connecté
+export const getCurrentUserMatricule = () => {
+  const user = getCurrentUser();
+  return user?.matricule || null;
 };

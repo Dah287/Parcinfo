@@ -28,6 +28,8 @@ import Login from "./components/Login/Login";
 import { getDefaultRouteByRole, isRouteAllowed } from "./config/roleRoutes";
 import Register from "./components/Login/Register";
 import GestionUtilisateurs from "./components/GesUtilisateurs/GestionUtilisateurs";
+import DemandesReaffectation from "./components/materiels/DemandesReaffectation";
+import PVDemandesDownload from "./components/materiels/PVDemandesDownload";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -190,6 +192,23 @@ function App() {
                   <PreparationInventaire />
                 </ProtectedRoute>
               } />
+                            <Route path="/demandes-reaffectation" element={
+                <ProtectedRoute>
+                  <DemandesReaffectation />
+                </ProtectedRoute>
+              } />
+
+                            <Route path="/MultiReaffectation" element={
+                <ProtectedRoute >
+                  <MultiReaffectation />
+                </ProtectedRoute>
+              } />
+
+                                          <Route path="/pvs-transferts" element={
+                <ProtectedRoute >
+                  <PVDemandesDownload />
+                </ProtectedRoute>
+              } />
 
               {/* Routes pour ADMIN et GESTIONNAIRE uniquement */}
               <Route path="/achats" element={
@@ -227,11 +246,7 @@ function App() {
                   <AttributionMateriel />
                 </ProtectedRoute>
               } />
-              <Route path="/MultiReaffectation" element={
-                <ProtectedRoute requiredRole={['ADMIN', 'GESTIONNAIRE']}>
-                  <MultiReaffectation />
-                </ProtectedRoute>
-              } />
+
               <Route path="/GestionFournisseurs" element={
                 <ProtectedRoute requiredRole={['ADMIN', 'GESTIONNAIRE']}>
                   <GestionFournisseurs />
@@ -247,6 +262,7 @@ function App() {
                   <PreparationMateriels />
                 </ProtectedRoute>
               } />
+
               <Route path="/gestion-beneficiaires" element={
                 <ProtectedRoute requiredRole={['ADMIN', 'GESTIONNAIRE']}>
                   <GestionBeneficiaires />

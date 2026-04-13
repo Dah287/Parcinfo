@@ -9,7 +9,7 @@ export const roleRoutes = {
       '/GestionFournisseurs', '/AffectationComplete', '/ConsultationPrixAchat',
       '/attributions/PrisesEnChargeAchat', '/prise-en-charge', 
       '/preparation-affectation-materiel', '/gestion-beneficiaires',
-      '/preparation-inventaire', '/admin/users', '/admin/settings'
+      '/preparation-inventaire', '/admin/users', '/admin/settings', '/demandes-reaffectation', '/pvs-transferts'
     ]
   },
   GESTIONNAIRE: {
@@ -33,8 +33,8 @@ export const roleRoutes = {
   USER: {
     defaultPath: '/materiels',
     allowedRoutes: [
-      '/', '/materiels', '/ConsultationPrixAchat',
-      '/attributions/PrisesEnChargeAchat','/preparation-inventaire','/HistoriqueMateriel', '/prise-en-charge'
+      '/', '/materiels', '/ConsultationPrixAchat', '/MultiReaffectation',
+      '/attributions/PrisesEnChargeAchat','/preparation-inventaire','/HistoriqueMateriel', '/prise-en-charge', '/demandes-reaffectation', '/pvs-transferts'
     ]
   }
 };

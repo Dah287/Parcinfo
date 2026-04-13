@@ -9,19 +9,17 @@ import {
   FiChevronDown,
   FiRefreshCw,
   FiArrowRight,
-  FiList
+  FiList,
+  FiClock,
+  FiShield
 } from 'react-icons/fi';
 import { 
-  reaffecterMateriel, 
-  getMaterielsByBeneficiaire,
-  getMaterielsDisponibles
+  getMaterielsByBeneficiaire
 } from '../../services/materialService';
 import { getAllBeneficiaires } from '../../services/beneficiareService';
+import { getCurrentUser, getAllUtilisateurs } from '../../services/authService';
+import { creerDemandeReaffectation, getDemandesEnAttente ,creerDemandeReaffectationGroupee} from '../../services/reaffectationValidationService';
 import { toast } from 'react-toastify';
-// ✅ Nouvel import explicite
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';  // ← Import direct du plugin
-
 
 const MultiReaffectation = () => {
   // États pour les bénéficiaires
@@ -48,27 +46,62 @@ const MultiReaffectation = () => {
   const [dateReaffectation, setDateReaffectation] = useState(new Date().toISOString().split('T')[0]);
   const [observations, setObservations] = useState('');
 
-// Après les autres useState
-const [lastReaffectationResult, setLastReaffectationResult] = useState(null);
-const [showPdfPreview, setShowPdfPreview] = useState(false);
+  // États pour la validation à deux niveaux
+  const [currentUser, setCurrentUser] = useState(null);
+  const [validateurRequis, setValidateurRequis] = useState(null);
+  const [demandesEnAttenteCount, setDemandesEnAttenteCount] = useState(0);
 
-  // Charger les bénéficiaires
+  // Charger les bénéficiaires et l'utilisateur connecté
   useEffect(() => {
-    const loadBeneficiaires = async () => {
+    const loadInitialData = async () => {
       try {
         setLoadingBeneficiaires(true);
-        const response = await getAllBeneficiaires();
-        setBeneficiaires(response.data || []);
+        
+        // Charger les bénéficiaires
+        const benefResponse = await getAllBeneficiaires();
+        setBeneficiaires(benefResponse.data || []);
+        
+        // Charger l'utilisateur connecté
+        const user = getCurrentUser();
+        setCurrentUser(user);
+        
+        // Charger tous les utilisateurs pour la validation
+        if (user) {
+          const usersResponse = await getAllUtilisateurs();
+          const utilisateursList = usersResponse.data || [];
+          
+          // Déterminer le validateur requis
+          const validateur = getValidateurRequis(user.role, utilisateursList);
+          setValidateurRequis(validateur);
+          
+          // Charger le nombre de demandes en attente pour afficher une notification
+          if (user.id) {
+            const demandes = await getDemandesEnAttente(user.id);
+            setDemandesEnAttenteCount(demandes.length);
+          }
+        }
       } catch (error) {
-        console.error('Erreur chargement bénéficiaires:', error);
-        toast.error('Erreur lors du chargement des bénéficiaires');
+        console.error('Erreur chargement données initiales:', error);
+        toast.error('Erreur lors du chargement des données');
       } finally {
         setLoadingBeneficiaires(false);
       }
     };
 
-    loadBeneficiaires();
+    loadInitialData();
   }, []);
+
+  // Déterminer le validateur requis en fonction du rôle
+  const getValidateurRequis = (userRole, usersList) => {
+    if (userRole === 'ADMIN') {
+      // ADMIN a besoin d'un USER pour valider
+      return usersList.find(u => u.role === 'USER' && u.actif === true);
+    } else if (userRole === 'USER') {
+      // USER a besoin d'un ADMIN pour valider
+      return usersList.find(u => u.role === 'ADMIN' && u.actif === true);
+    }
+    return null;
+  };
 
   // Charger les matériels du bénéficiaire source quand il est sélectionné
   useEffect(() => {
@@ -82,7 +115,6 @@ const [showPdfPreview, setShowPdfPreview] = useState(false);
         setLoadingMateriels(true);
         const response = await getMaterielsByBeneficiaire(sourceBeneficiaire.id);
         setMaterielsSource(response.data || []);
-        // Réinitialiser la sélection des matériels
         setMaterielsSelectionnes([]);
       } catch (error) {
         console.error('Erreur chargement matériels:', error);
@@ -107,7 +139,6 @@ const [showPdfPreview, setShowPdfPreview] = useState(false);
   });
 
   const filteredDestinationBeneficiaires = beneficiaires.filter(beneficiaire => {
-    // Exclure le bénéficiaire source de la liste destination
     if (sourceBeneficiaire && beneficiaire.id === sourceBeneficiaire.id) return false;
     
     const searchLower = destinationSearch.toLowerCase();
@@ -139,317 +170,72 @@ const [showPdfPreview, setShowPdfPreview] = useState(false);
     setMaterielsSelectionnes([]);
   };
 
-  // Soumettre la réaffectation
-  const handleSubmit = async (e) => {
+  // Soumettre la réaffectation avec validation à deux niveaux
+// MultiReaffectation.jsx - Modifier handleSubmitWithValidation
+
+const handleSubmitWithValidation = async (e) => {
     e.preventDefault();
     
     if (!sourceBeneficiaire || !destinationBeneficiaire) {
-      toast.warning('Veuillez sélectionner les bénéficiaires source et destination');
-      return;
+        toast.warning('Veuillez sélectionner les bénéficiaires source et destination');
+        return;
     }
 
     if (materielsSelectionnes.length === 0) {
-      toast.warning('Veuillez sélectionner au moins un matériel à transférer');
-      return;
+        toast.warning('Veuillez sélectionner au moins un matériel à transférer');
+        return;
     }
 
     if (sourceBeneficiaire.id === destinationBeneficiaire.id) {
-      toast.warning('Le bénéficiaire source et destination doivent être différents');
-      return;
+        toast.warning('Le bénéficiaire source et destination doivent être différents');
+        return;
+    }
+
+    if (!currentUser) {
+        toast.error('Utilisateur non identifié');
+        return;
+    }
+
+    if (!validateurRequis) {
+        toast.error(`Aucun ${currentUser.role === 'ADMIN' ? 'USER' : 'ADMIN'} disponible pour valider cette opération`);
+        return;
     }
 
     try {
-      setLoadingReaffectation(true);
-      
-      // Réaffecter chaque matériel sélectionné
-      const promises = materielsSelectionnes.map(materiel => {
-        const dto = {
-          materielId: materiel.id,
-          beneficiaireId: destinationBeneficiaire.id,
-          dateAttribution: dateReaffectation,
-          observations: observations
-        };
-        return reaffecterMateriel(dto);
-      });
-
-      const results = await Promise.all(promises);
-      
-// Dans le bloc try, après les résultats :
-toast.success(`${results.length} matériel(s) transféré(s) avec succès !`);
-
-// Stocker les données pour le PV
-setLastReaffectationResult({
-  source: { ...sourceBeneficiaire },
-  destination: { ...destinationBeneficiaire },
-  materiels: [...materielsSelectionnes],
-  date: dateReaffectation,
-  observations: observations
-});
-
-setShowPdfPreview(true);
-
-// Recharger les matériels du bénéficiaire source
-if (sourceBeneficiaire) {
-  const response = await getMaterielsByBeneficiaire(sourceBeneficiaire.id);
-  setMaterielsSource(response.data || []);
-}
-      
-      // Réinitialiser le formulaire
-      resetForm();
-      
-      // Recharger les matériels du bénéficiaire source
-      if (sourceBeneficiaire) {
-        const response = await getMaterielsByBeneficiaire(sourceBeneficiaire.id);
-        setMaterielsSource(response.data || []);
-      }
-      
+        setLoadingReaffectation(true);
+        
+        // ✅ Créer UNE SEULE demande groupée
+        const materielIds = materielsSelectionnes.map(m => m.id);
+        
+        const demande = await creerDemandeReaffectationGroupee(
+            materielIds,
+            destinationBeneficiaire.id,
+            currentUser.id,
+            validateurRequis.id,
+            dateReaffectation,
+            observations
+        );
+        
+        toast.success(`Demande groupée créée avec succès ! (${materielsSelectionnes.length} matériel(s))`);
+        toast.info(`En attente de validation par ${validateurRequis.nom} ${validateurRequis.prenom} (${validateurRequis.role})`);
+        
+        // Réinitialiser le formulaire
+        resetForm();
+        
+        // Recharger les matériels du bénéficiaire source
+        if (sourceBeneficiaire) {
+            const response = await getMaterielsByBeneficiaire(sourceBeneficiaire.id);
+            setMaterielsSource(response.data || []);
+        }
+        
     } catch (error) {
-      console.error('Erreur réaffectation:', error);
-      toast.error(error.response?.data?.message || 'Erreur lors du transfert des matériels');
+        console.error('Erreur création demande:', error);
+        toast.error(error.response?.data?.message || 'Erreur lors de la création de la demande');
     } finally {
-      setLoadingReaffectation(false);
+        setLoadingReaffectation(false);
     }
-  };
-// Génère le PV de changement en PDF
-// Génère le PV de changement en PDF - Version corrigée
-// Génère le PV de changement au format ORMVAD/SMG-BPI
-const generatePVChangementPDF = () => {
-  if (!lastReaffectationResult) {
-    toast.warning('Aucune réaffectation récente à imprimer');
-    return;
-  }
-
-  const { source, destination, materiels, date, observations } = lastReaffectationResult;
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
-  
-  // ==========================================
-  // HEADER
-  // ==========================================
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("ORMVAD", 14, 15);
-  doc.setFont("helvetica", "normal");
-  doc.text("SMG/BPI", 14, 21);
-  
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.5);
-  doc.rect(pageWidth - 35, 10, 25, 8);
-  doc.setFontSize(10);
-  doc.text("N°", pageWidth - 22, 16);
-  
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  const titleText = "PROCES VERBAL DE CHANGEMENT";
-  const titleWidth = doc.getTextWidth(titleText);
-  const titleX = (pageWidth - titleWidth) / 2;
-  doc.text(titleText, titleX, 35);
-  doc.setLineWidth(0.5);
-  doc.rect(titleX - 3, 26, titleWidth + 6, 12);
-  
-  // ==========================================
-  // PARTIES SECTION
-  // ==========================================
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text("Entre les soussignés :", 14, 50);
-  
-  // Helper pour formater les noms
-  const formatNomComplet = (nom, prenom) => {
-    if (nom && prenom) return `${nom.toUpperCase()} ${prenom.toUpperCase()}`;
-    if (nom) return nom.toUpperCase();
-    return "........................";
-  };
-  
-  // L'Expéditeur (Source)
-  doc.setFont("helvetica", "bold");
-  doc.text("L'Expéditeur :", 20, 60);
-  doc.setFont("helvetica", "normal");
-  
-  const sourceNomComplet = formatNomComplet(source.nom, source.prenom);
-  const sourceDepartement = source.departement?.nom || source.service?.nom || "...........";
-  
-  doc.text(sourceNomComplet, 50, 60);
-  doc.text(`Matricule : ${source.matricule || "..............."}`, 50, 67);
-  doc.text("Code Analytique : ...............", 90, 67);
-  doc.text(`Local. : ${sourceDepartement}`, 150, 67);
-  
-  doc.setFont("helvetica", "italic");
-  doc.text("D'UNE PART", pageWidth - 35, 73);
-  
-  // Le Preneur (Destination)
-  doc.setFont("helvetica", "bold");
-  doc.text("Le Preneur :", 20, 83);
-  doc.setFont("helvetica", "normal");
-  
-  const destNomComplet = formatNomComplet(destination.nom, destination.prenom);
-  const destDepartement = destination.departement?.nom || destination.service?.nom || "...........";
-  
-  doc.text(destNomComplet, 50, 83);
-  doc.text(`Matricule : ${destination.matricule || "..............."}`, 50, 90);
-  doc.text("Code Analytique : ...............", 90, 90);
-  doc.text(`Local. : ${destDepartement}`, 150, 90);
-  
-  doc.setFont("helvetica", "italic");
-  doc.text("D'AUTRE PART", pageWidth - 35, 96);
-  
-  // Intro text
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("Le preneur soussigné avoir pris en charge les articles ci-dessous", 14, 106);
-  
-  // ==========================================
-  // TABLE - MULTI MATÉRIELS
-  // ==========================================
-  const tableColumn = [
-    "Code Inventaire Origine",
-    "Désignation",
-    "Uté",
-    "Qté",
-    "Prix Unitaire",
-    "Code Inventaire Nouveau"
-  ];
-  
-  const tableRows = materiels.map(materiel => {
-    // Formatage de la désignation avec type + numéro de série
-    const designation = `${materiel.type?.designation || 'N/A'}\nNS: ${materiel.numeroSerie || ''}`;
-    
-    // Formatage du prix (adaptez selon votre structure de données)
-    const prixUnitaire = materiel.prix?.montant 
-      ? `${materiel.prix.montant.toLocaleString('fr-FR')} DH` 
-      : (materiel.prixAchat ? `${materiel.prixAchat} DH` : "");
-    
-    return [
-      materiel.numeroInventaire || "",           // Code Inventaire Origine
-      designation,                                // Désignation avec saut de ligne
-      "U",                                        // Uté (unité)
-      "01",                                       // Qté (toujours 1 par ligne)
-      prixUnitaire,                               // Prix Unitaire
-      ""                                          // Code Inventaire Nouveau (vide comme demandé)
-    ];
-  });
-  
-  autoTable(doc, {
-    startY: 110,
-    head: [tableColumn],
-    body: tableRows,
-    theme: 'grid',
-    styles: { 
-      fontSize: 9, 
-      cellPadding: 3,
-      font: 'helvetica',
-      lineColor: [0, 0, 0],
-      lineWidth: 0.5,
-      cellWidth: 'auto',
-      overflow: 'linebreak'  // Permet le saut de ligne dans les cellules
-    },
-    headStyles: { 
-      fillColor: [255, 255, 255],
-      textColor: [0, 0, 0], 
-      fontStyle: 'bold',
-      halign: 'center',
-      lineWidth: 0.5
-    },
-    bodyStyles: { 
-      textColor: [0, 0, 0],
-      valign: 'top'  // Alignement haut pour les cellules multi-lignes
-    },
-    columnStyles: {
-      0: { cellWidth: 38, halign: 'center' }, // Code Inventaire Origine
-      1: { cellWidth: 62, halign: 'left' },   // Désignation (plus large pour le texte)
-      2: { cellWidth: 15, halign: 'center' }, // Uté
-      3: { cellWidth: 15, halign: 'center' }, // Qté
-      4: { cellWidth: 25, halign: 'right' },  // Prix Unitaire
-      5: { cellWidth: 38, halign: 'center' }  // Code Inventaire Nouveau
-    },
-    margin: { left: 10, right: 10 },
-    didParseCell: (data) => {
-      // Ajout d'un saut de ligne automatique dans la colonne Désignation
-      if (data.column.index === 1 && data.cell.raw) {
-        data.cell.styles.minCellHeight = 15; // Hauteur minimale pour 2 lignes
-      }
-    }
-  });
-  
-  // ==========================================
-  // FOOTER SECTION
-  // ==========================================
-  const finalY = doc.lastAutoTable?.finalY || 150;
-  
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text("Etat des articles Mutés :", 14, finalY + 10);
-  doc.setLineWidth(0.25);
-  doc.setDrawColor(150);
-  doc.line(50, finalY + 10, pageWidth - 20, finalY + 10);
-  doc.line(14, finalY + 18, pageWidth - 20, finalY + 18);
-  doc.line(14, finalY + 26, pageWidth - 20, finalY + 26);
-  
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "italic");
-  doc.setTextColor(80);
-  
-  const notaText1 = "NOTA : Aucun mouvement de mobilier ou de matériel ne peut être effectué sans avis préalable du responsable du patrimoine.";
-  const notaText2 = "En cas de perte le détenteur de l'objet se trouve dans l'obligation de le remplacer.";
-  
-  doc.text(notaText1, 14, finalY + 38, { maxWidth: pageWidth - 34 });
-  doc.text(notaText2, 14, finalY + 43, { maxWidth: pageWidth - 34 });
-  
-  doc.setTextColor(0);
-  
-  // Date avec observations si présentes
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  const dateStr = date ? new Date(date).toLocaleDateString('fr-FR') : '.../.../......';
-  doc.text(`Fait à : .................... Le ${dateStr}`, 14, finalY + 55);
-  
-  // Affichage des observations si présentes
-  if (observations) {
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8);
-    doc.text(`Obs. : ${observations}`, 14, finalY + 62, { maxWidth: pageWidth - 34 });
-  }
-  
-  // ==========================================
-  // SIGNATURE SECTIONS
-  // ==========================================
-  const signY = finalY + (observations ? 75 : 70);
-  const signWidth = 45;
-  
-  doc.setLineWidth(0.25);
-  doc.setDrawColor(0);
-  
-  // L'EXPEDITEUR
-  doc.line(14, signY, 14 + signWidth, signY);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text("L'EXPEDITEUR", 14 + signWidth/2, signY + 8, { align: 'center' });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.text(sourceNomComplet, 14 + signWidth/2, signY + 14, { align: 'center' });
-  
-  // LE REPRESENTANT DU BPI
-  const middleX = pageWidth / 2;
-  doc.line(middleX - signWidth/2, signY, middleX + signWidth/2, signY);
-  doc.text("LE REPRESENTANT DU BPI", middleX, signY + 8, { align: 'center' });
-  doc.setFontSize(8);
-  doc.text("Vu et approuvé", middleX, signY + 14, { align: 'center' });
-  
-  // LE PRENEUR
-  const rightX = pageWidth - 20 - signWidth;
-  doc.line(rightX, signY, rightX + signWidth, signY);
-  doc.text("LE PRENEUR", rightX + signWidth/2, signY + 8, { align: 'center' });
-  doc.setFontSize(8);
-  doc.text(destNomComplet, rightX + signWidth/2, signY + 14, { align: 'center' });
-  
-  // ==========================================
-  // SAVE PDF
-  // ==========================================
-  const fileName = `PV_Changement_${date}_${source.matricule || 'source'}_vers_${destination.matricule || 'dest'}.pdf`;
-  doc.save(fileName);
-  
-  toast.success('PV de changement téléchargé avec succès !');
 };
+
   const resetForm = () => {
     setSourceBeneficiaire(null);
     setDestinationBeneficiaire(null);
@@ -462,9 +248,33 @@ const generatePVChangementPDF = () => {
     setShowDestinationDropdown(false);
   };
 
-  // Rendu
   return (
     <div className="max-w-6xl mx-auto p-6">
+      {/* Notification des demandes en attente - lien vers la page de gestion */}
+      {demandesEnAttenteCount > 0 && (
+        <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <FiClock className="text-orange-600 mr-3" size={20} />
+              <div>
+                <p className="font-medium text-orange-800">
+                  Vous avez {demandesEnAttenteCount} demande(s) en attente de validation
+                </p>
+                <p className="text-sm text-orange-600">
+                  Des demandes de réaffectation nécessitent votre validation
+                </p>
+              </div>
+            </div>
+            <a
+              href="/demandes-reaffectation"
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+            >
+              Voir les demandes
+            </a>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
         <div className="flex items-center mb-6">
           <div className="bg-purple-100 p-3 rounded-lg mr-4">
@@ -476,7 +286,7 @@ const generatePVChangementPDF = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmitWithValidation}>
           {/* Section 1: Bénéficiaires */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {/* Bénéficiaire Source */}
@@ -713,6 +523,28 @@ const generatePVChangementPDF = () => {
             </div>
           </div>
 
+          {/* Avertissement validation à deux niveaux */}
+          {currentUser && validateurRequis && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start">
+                <FiShield className="text-blue-600 mr-3 mt-0.5" size={20} />
+                <div>
+                  <p className="font-medium text-blue-800">
+                    Validation à deux niveaux requise
+                  </p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    En tant que <strong>{currentUser.role}</strong>, cette opération nécessite la validation 
+                    par un <strong>{currentUser.role === 'ADMIN' ? 'USER' : 'ADMIN'}</strong> : 
+                    <strong className="ml-1">{validateurRequis.nom} {validateurRequis.prenom}</strong>
+                  </p>
+                  <p className="text-xs text-blue-600 mt-2">
+                    La demande sera créée et devra être validée dans la section <strong>"Demandes de transfert"</strong> avant que le transfert ne soit effectif.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Section 2: Matériels du bénéficiaire source */}
           {sourceBeneficiaire && (
             <div className="mb-8">
@@ -776,7 +608,7 @@ const generatePVChangementPDF = () => {
                           <div className="flex-1">
                             <div className="flex justify-between">
                               <div className="font-medium text-gray-800">
-                                {materiel.numeroInventaire || `Matériel NS: ${materiel.numeroSerie} `}
+                                {materiel.numeroInventaire || `Matériel NS: ${materiel.numeroSerie}`}
                               </div>
                               {materiel.type && (
                                 <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
@@ -787,20 +619,10 @@ const generatePVChangementPDF = () => {
                             
                             <div className="mt-2 text-sm text-gray-600">
                               <div className="flex justify-between">
-
                                 <span>{`NI : ${materiel.numeroInventaire || 'Aucun'} `}</span>
                                 <span>{`NS : ${materiel.numeroSerie || 'Aucun'} `}</span>
                                 <span>{`Exercice : ${materiel.exercice || 'Aucun'} `}</span>
                               </div>
-                              
-                              {materiel.caracteristiques && (
-                                <div className="mt-1 text-xs text-gray-500 truncate">
-                                  {Object.entries(materiel.caracteristiques)
-                                    .slice(0, 2)
-                                    .map(([key, value]) => `${key}: ${value}`)
-                                    .join(', ')}
-                                </div>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -871,59 +693,22 @@ const generatePVChangementPDF = () => {
             </button>
             <button
               type="submit"
-              disabled={loadingReaffectation || materielsSelectionnes.length === 0 || !sourceBeneficiaire || !destinationBeneficiaire}
+              disabled={loadingReaffectation || materielsSelectionnes.length === 0 || !sourceBeneficiaire || !destinationBeneficiaire || !validateurRequis}
               className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {loadingReaffectation ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                  Transfert en cours...
+                  Création de la demande...
                 </>
               ) : (
                 <>
                   <FiArrowRight className="mr-2" />
-                  Transférer {materielsSelectionnes.length} matériel(s)
+                  Créer la demande de transfert ({materielsSelectionnes.length})
                 </>
               )}
             </button>
           </div>
-          {/* Bouton d'impression PDF - affiché après succès */}
-{showPdfPreview && lastReaffectationResult && (
-  <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl">
-    <div className="flex items-center justify-between flex-wrap gap-3">
-      <div className="flex items-center">
-        <FiCheck className="text-green-600 mr-2" />
-        <span className="font-medium text-green-800">
-          ✓ {lastReaffectationResult.materiels.length} matériel(s) transféré(s)
-        </span>
-      </div>
-      <div className="flex space-x-3">
-        <button
-          type="button"
-          onClick={generatePVChangementPDF}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center"
-        >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-          </svg>
-          Télécharger le PV (PDF)
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            resetForm();
-            setShowPdfPreview(false);
-            setLastReaffectationResult(null);
-          }}
-          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-        >
-          Nouvelle opération
-        </button>
-      </div>
-    </div>
-  </div>
-)}
         </form>
       </div>
 
