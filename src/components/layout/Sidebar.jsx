@@ -555,7 +555,7 @@ const Sidebar = ({ onLogout, userRole = 'USER' }) => {
   );
 
   return (
-    <div className="bg-gradient-to-b from-blue-900 to-blue-800 text-white h-screen w-[16.5rem] fixed flex flex-col">
+    <div className="bg-gradient-to-b from-blue-900 to-blue-800 text-white h-screen w-[16.rem] fixed flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-blue-700 bg-gradient-to-r from-blue-900 to-indigo-900 z-10 shrink-0">
         <div className="flex items-center">
