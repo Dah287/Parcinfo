@@ -19,4 +19,6 @@ public class AttributionMaterialDTO {
     private Long beneficiaireId;
 
     private LocalDate dateAttribution;
+
+    private String observations;  // ✅ AJOUTER CETTE LIGNE
 }

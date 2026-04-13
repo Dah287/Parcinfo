@@ -3,13 +3,8 @@ package com.example.parcinfo.service;
 import com.example.parcinfo.controller.MaterielsPreparationResponse;
 import com.example.parcinfo.dto.*;
 import com.example.parcinfo.exception.ValidationException;
-import com.example.parcinfo.model.Material;
-import com.example.parcinfo.model.Beneficiaire;
-import com.example.parcinfo.model.Prix;
-import com.example.parcinfo.model.TypeOperation;
-import com.example.parcinfo.repository.MaterialRepository;
-import com.example.parcinfo.repository.BeneficiaireRepository;
-import com.example.parcinfo.repository.PrixRepository;
+import com.example.parcinfo.model.*;
+import com.example.parcinfo.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -23,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,6 +35,12 @@ public class MaterialService {
     BeneficiaireRepository beneficiaireRepository;
     @Autowired
     HistoriqueAttributionService historiqueService;
+
+    @Autowired
+    private DemandeReaffectationRepository demandeReaffectationRepository;
+
+    @Autowired
+    private UtilisateurRepository utilisateurRepository;
 
     @Autowired
     PrixRepository prixRepository;
@@ -90,10 +92,21 @@ public class MaterialService {
     /**
      * Réaffecter un matériel à un autre bénéficiaire
      */
+    /**
+     * Réaffecter un matériel à un autre bénéficiaire
+     */
     @Transactional
     public Material reaffecterMateriel(AttributionMaterialDTO dto) {
+        System.out.println("=== DÉBUT RÉAFFECTATION ===");
+        System.out.println("Matériel ID: " + dto.getMaterielId());
+        System.out.println("Nouveau bénéficiaire ID: " + dto.getBeneficiaireId());
+
         Material materiel = materialRepository.findById(dto.getMaterielId())
                 .orElseThrow(() -> new RuntimeException("Matériel non trouvé avec l'ID: " + dto.getMaterielId()));
+
+        System.out.println("Matériel trouvé: " + materiel.getNumeroInventaire());
+        System.out.println("Ancien bénéficiaire: " + (materiel.getBeneficiaire() != null ? materiel.getBeneficiaire().getNom() : "null"));
+        System.out.println("État actuel: " + materiel.getEtat());
 
         Beneficiaire nouveauBeneficiaire = beneficiaireRepository.findById(dto.getBeneficiaireId())
                 .orElseThrow(() -> new RuntimeException("Bénéficiaire non trouvé avec l'ID: " + dto.getBeneficiaireId()));
@@ -105,7 +118,7 @@ public class MaterialService {
         Long ancienBeneficiaireId = (materiel.getBeneficiaire() != null) ?
                 materiel.getBeneficiaire().getId() : null;
 
-        // Enregistrer dans l'historique AVANT la modification
+        // Enregistrer dans l'historique
         historiqueService.enregistrerAttribution(
                 materiel.getId(),
                 ancienBeneficiaireId,
@@ -113,7 +126,8 @@ public class MaterialService {
                 TypeOperation.REAFFECTATION,
                 "Réaffectation du matériel " + materiel.getNumeroInventaire() +
                         " de " + (materiel.getBeneficiaire() != null ? materiel.getBeneficiaire().getNom() : "inconnu") +
-                        " vers " + nouveauBeneficiaire.getNom() + " " + nouveauBeneficiaire.getPrenom()
+                        " vers " + nouveauBeneficiaire.getNom() + " " + nouveauBeneficiaire.getPrenom() +
+                        (dto.getObservations() != null ? " - " + dto.getObservations() : "")
         );
 
         // Réaffecter le matériel
@@ -121,9 +135,13 @@ public class MaterialService {
         materiel.setDateAttribution(dto.getDateAttribution() != null ?
                 dto.getDateAttribution() : LocalDate.now());
 
-        return materialRepository.save(materiel);
-    }
+        Material saved = materialRepository.save(materiel);
 
+        System.out.println("Nouveau bénéficiaire après sauvegarde: " + (saved.getBeneficiaire() != null ? saved.getBeneficiaire().getNom() : "null"));
+        System.out.println("=== FIN RÉAFFECTATION ===");
+
+        return saved;
+    }
     /**
      * Libérer un matériel (retirer l'attribution)
      */
@@ -551,4 +569,288 @@ public class MaterialService {
         return new InventaireUpdateResult(updatedCount, updates.size() - updatedCount, List.of(), errors);
     }
 
+
+    /**
+     * Créer une demande de réaffectation avec validation à deux niveaux
+     */
+    @Transactional
+    public DemandeReaffectation creerDemandeReaffectation(
+            AttributionMaterialDTO dto,
+            Long demandeurId,
+            Long validateurId) {
+
+        Material materiel = materialRepository.findById(dto.getMaterielId())
+                .orElseThrow(() -> new RuntimeException("Matériel non trouvé"));
+
+        Beneficiaire source = materiel.getBeneficiaire();
+        if (source == null) {
+            throw new RuntimeException("Le matériel n'est pas attribué");
+        }
+
+        Beneficiaire destination = beneficiaireRepository.findById(dto.getBeneficiaireId())
+                .orElseThrow(() -> new RuntimeException("Bénéficiaire destination non trouvé"));
+
+        Utilisateur demandeur = utilisateurRepository.findById(demandeurId)
+                .orElseThrow(() -> new RuntimeException("Demandeur non trouvé"));
+
+        Utilisateur validateur = utilisateurRepository.findById(validateurId)
+                .orElseThrow(() -> new RuntimeException("Validateur non trouvé"));
+
+        DemandeReaffectation demande = DemandeReaffectation.builder()
+                .materiel(materiel)
+                .beneficiaireSource(source)
+                .beneficiaireDestination(destination)
+                .demandeur(demandeur)
+                .validateur(validateur)
+                .statut(DemandeReaffectation.StatutDemande.EN_ATTENTE)  // ✅ Toujours EN_ATTENTE
+                .dateDemande(LocalDateTime.now())
+                .observations(dto.getObservations())
+                .build();
+
+        System.out.println("=== CRÉATION DEMANDE ===");
+        System.out.println("Demandeur: " + demandeur.getNom() + " (" + demandeur.getRole() + ")");
+        System.out.println("Validateur: " + validateur.getNom() + " (" + validateur.getRole() + ")");
+        System.out.println("Statut: EN_ATTENTE");
+
+        return demandeReaffectationRepository.save(demande);
+    }
+    /**
+     * Valider une demande de réaffectation (1ère ou 2ème étape)
+     */
+    /**
+     * Valider une demande de réaffectation (1ère ou 2ème étape)
+     */
+    /**
+     * Valider une demande de réaffectation (1ère ou 2ème étape)
+     */
+    /**
+     * Valider une demande de réaffectation (1ère ou 2ème étape)
+     */
+    /**
+     * Valider une demande de réaffectation (validation unique)
+     */
+    @Transactional
+    public DemandeReaffectation validerDemande(Long demandeId, Long validateurId, boolean accepte, String motifRejet) {
+        DemandeReaffectation demande = demandeReaffectationRepository.findById(demandeId)
+                .orElseThrow(() -> new RuntimeException("Demande non trouvée"));
+
+        Utilisateur validateur = utilisateurRepository.findById(validateurId)
+                .orElseThrow(() -> new RuntimeException("Validateur non trouvé"));
+
+        System.out.println("=== VALIDATION DEMANDE ===");
+        System.out.println("Demande ID: " + demandeId);
+        System.out.println("Validateur ID: " + validateurId);
+        System.out.println("Validateur rôle: " + validateur.getRole());
+        System.out.println("Demandeur rôle: " + demande.getDemandeur().getRole());
+        System.out.println("Statut actuel: " + demande.getStatut());
+        System.out.println("Accepte: " + accepte);
+
+        // Vérifier que le validateur est bien celui attendu
+        if (!demande.getValidateur().getId().equals(validateurId)) {
+            throw new RuntimeException("Vous n'êtes pas le validateur désigné pour cette demande");
+        }
+
+        // EMPÊCHER L'AUTO-VALIDATION
+        if (demande.getDemandeur().getId().equals(validateurId)) {
+            throw new RuntimeException("Vous ne pouvez pas valider votre propre demande");
+        }
+
+        if (!accepte) {
+            demande.setStatut(DemandeReaffectation.StatutDemande.REJETEE);
+            demande.setMotifRejet(motifRejet);
+            demande.setDateValidation(LocalDateTime.now());
+            System.out.println("Demande refusée");
+            return demandeReaffectationRepository.save(demande);
+        }
+
+        // ✅ VALIDATION ACCEPTÉE - Récupérer la liste des matériels
+        List<Material> materielsAAffecter = new ArrayList<>();
+
+        // Cas 1: Demande groupée (avec la liste materiels)
+        if (demande.getMateriels() != null && !demande.getMateriels().isEmpty()) {
+            materielsAAffecter = demande.getMateriels();
+            System.out.println("Demande groupée - Nombre de matériels: " + materielsAAffecter.size());
+        }
+        // Cas 2: Demande simple (avec l'ancien champ materiel)
+        else if (demande.getMateriel() != null) {
+            materielsAAffecter.add(demande.getMateriel());
+            System.out.println("Demande simple - 1 matériel");
+        }
+        else {
+            throw new RuntimeException("Aucun matériel trouvé dans la demande");
+        }
+
+        // Exécuter la réaffectation pour TOUS les matériels
+        for (Material materiel : materielsAAffecter) {
+            System.out.println("Réaffectation du matériel: " + materiel.getNumeroInventaire());
+
+            // Vérifier que le matériel est bien attribué
+            if (materiel.getBeneficiaire() == null) {
+                throw new RuntimeException("Le matériel " + materiel.getNumeroInventaire() + " n'est pas attribué");
+            }
+
+            AttributionMaterialDTO dto = AttributionMaterialDTO.builder()
+                    .materielId(materiel.getId())
+                    .beneficiaireId(demande.getBeneficiaireDestination().getId())
+                    .dateAttribution(LocalDate.now())
+                    .observations(demande.getObservations())
+                    .build();
+
+            reaffecterMateriel(dto);
+            System.out.println("Matériel réaffecté avec succès: " + materiel.getNumeroInventaire());
+        }
+
+        demande.setStatut(DemandeReaffectation.StatutDemande.VALIDEE);
+        demande.setDateValidation(LocalDateTime.now());
+
+        System.out.println("=== VALIDATION TERMINÉE ===");
+        return demandeReaffectationRepository.save(demande);
+    }
+
+    /**
+     * Obtenir les demandes en attente pour un validateur
+     */
+    /**
+     * Obtenir les demandes en attente pour un validateur
+     */
+    /**
+     * Obtenir les demandes en attente pour un validateur
+     */
+    public List<DemandeReaffectation> getDemandesEnAttentePourValidateur(Long validateurId) {
+        try {
+            Utilisateur validateur = utilisateurRepository.findById(validateurId)
+                    .orElseThrow(() -> new RuntimeException("Validateur non trouvé: " + validateurId));
+
+            System.out.println("=== getDemandesEnAttentePourValidateur ===");
+            System.out.println("Validateur ID: " + validateurId);
+            System.out.println("Validateur rôle: " + validateur.getRole());
+
+            List<DemandeReaffectation> result = new ArrayList<>();
+
+            if ("ADMIN".equals(validateur.getRole())) {
+                // ADMIN peut valider les demandes créées par USER (EN_ATTENTE)
+                result = demandeReaffectationRepository.findByStatutAndValidateurId(
+                        DemandeReaffectation.StatutDemande.EN_ATTENTE, validateurId);
+                System.out.println("ADMIN - Demandes EN_ATTENTE trouvées: " + result.size());
+            } else if ("USER".equals(validateur.getRole())) {
+                // USER peut valider les demandes créées par ADMIN (EN_ATTENTE)
+                result = demandeReaffectationRepository.findByStatutAndValidateurId(
+                        DemandeReaffectation.StatutDemande.EN_ATTENTE, validateurId);
+                System.out.println("USER - Demandes EN_ATTENTE trouvées: " + result.size());
+            }
+
+            return result;
+        } catch (Exception e) {
+            System.err.println("Erreur dans getDemandesEnAttentePourValidateur: " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
+    /**
+     * Récupérer toutes les demandes où l'utilisateur est demandeur OU validateur
+     */
+    @Transactional(readOnly = true)
+    public List<DemandeReaffectation> getDemandesByUser(Long userId) {
+        // ✅ CORRECTION : Un seul paramètre (userId)
+        return demandeReaffectationRepository.findByDemandeurIdOrValidateurId(userId);
+    }
+// Dans MaterialService.java - Ajouter ces méthodes
+
+    /**
+     * Créer une demande groupée de réaffectation
+     */
+    @Transactional
+    public DemandeReaffectation creerDemandeReaffectationGroupee(
+            DemandeReaffectationGroupeeDTO dto) {
+
+        // Vérifier que tous les matériels existent et appartiennent au même bénéficiaire source
+        List<Material> materiels = new ArrayList<>();
+        Beneficiaire beneficiaireSource = null;
+
+        for (Long materielId : dto.getMaterielIds()) {
+            Material materiel = materialRepository.findById(materielId)
+                    .orElseThrow(() -> new RuntimeException("Matériel non trouvé: " + materielId));
+
+            if (materiel.getBeneficiaire() == null) {
+                throw new RuntimeException("Le matériel " + materiel.getNumeroInventaire() + " n'est pas attribué");
+            }
+
+            if (beneficiaireSource == null) {
+                beneficiaireSource = materiel.getBeneficiaire();
+            } else if (!beneficiaireSource.getId().equals(materiel.getBeneficiaire().getId())) {
+                throw new RuntimeException("Tous les matériels doivent appartenir au même bénéficiaire source");
+            }
+
+            materiels.add(materiel);
+        }
+
+        if (materiels.isEmpty()) {
+            throw new RuntimeException("Aucun matériel sélectionné");
+        }
+
+        Beneficiaire destination = beneficiaireRepository.findById(dto.getBeneficiaireDestinationId())
+                .orElseThrow(() -> new RuntimeException("Bénéficiaire destination non trouvé"));
+
+        Utilisateur demandeur = utilisateurRepository.findById(dto.getDemandeurId())
+                .orElseThrow(() -> new RuntimeException("Demandeur non trouvé"));
+
+        Utilisateur validateur = utilisateurRepository.findById(dto.getValidateurId())
+                .orElseThrow(() -> new RuntimeException("Validateur non trouvé"));
+
+        DemandeReaffectation demande = DemandeReaffectation.builder()
+                .materiels(materiels)
+                .beneficiaireSource(beneficiaireSource)
+                .beneficiaireDestination(destination)
+                .demandeur(demandeur)
+                .validateur(validateur)
+                .statut(DemandeReaffectation.StatutDemande.EN_ATTENTE)
+                .dateDemande(LocalDateTime.now())
+                .observations(dto.getObservations())
+                .build();
+
+        return demandeReaffectationRepository.save(demande);
+    }
+
+    /**
+     * Valider une demande groupée
+     */
+    @Transactional
+    public DemandeReaffectation validerDemandeGroupee(Long demandeId, Long validateurId, boolean accepte, String motifRejet) {
+        DemandeReaffectation demande = demandeReaffectationRepository.findById(demandeId)
+                .orElseThrow(() -> new RuntimeException("Demande non trouvée"));
+
+        Utilisateur validateur = utilisateurRepository.findById(validateurId)
+                .orElseThrow(() -> new RuntimeException("Validateur non trouvé"));
+
+        if (!demande.getValidateur().getId().equals(validateurId)) {
+            throw new RuntimeException("Vous n'êtes pas le validateur désigné pour cette demande");
+        }
+
+        if (demande.getDemandeur().getId().equals(validateurId)) {
+            throw new RuntimeException("Vous ne pouvez pas valider votre propre demande");
+        }
+
+        if (!accepte) {
+            demande.setStatut(DemandeReaffectation.StatutDemande.REJETEE);
+            demande.setMotifRejet(motifRejet);
+            demande.setDateValidation(LocalDateTime.now());
+            return demandeReaffectationRepository.save(demande);
+        }
+
+        // Valider et réaffecter TOUS les matériels de la demande
+        for (Material materiel : demande.getMateriels()) {
+            AttributionMaterialDTO dto = AttributionMaterialDTO.builder()
+                    .materielId(materiel.getId())
+                    .beneficiaireId(demande.getBeneficiaireDestination().getId())
+                    .dateAttribution(LocalDate.now())
+                    .observations(demande.getObservations())
+                    .build();
+            reaffecterMateriel(dto);
+        }
+
+        demande.setStatut(DemandeReaffectation.StatutDemande.VALIDEE);
+        demande.setDateValidation(LocalDateTime.now());
+
+        return demandeReaffectationRepository.save(demande);
+    }
 }
